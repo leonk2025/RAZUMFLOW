@@ -14,6 +14,8 @@ if 'ejecutivos' not in st.session_state:
     st.session_state.ejecutivos = ['Ana García', 'Carlos López', 'María Rodríguez', 'Pedro Martínez']
 if 'solicitudes_revision' not in st.session_state:
     st.session_state.solicitudes_revision = []
+if 'editing_project' not in st.session_state:
+    st.session_state.editing_project = None
 
 class Estado(Enum):
     OPORTUNIDAD = "OPORTUNIDAD"
@@ -41,15 +43,15 @@ class Proyecto:
         self.fecha_ultima_actualizacion = datetime.now()
         self.fecha_proximo_contacto = datetime.now() + timedelta(days=3)
         self.historial = [f"{datetime.now()}: Oportunidad creada por {asignado_a}"]
-
+    
     def _generar_codigo_proyecto(self):
         anio_actual = datetime.now().year
         numero = len([p for p in st.session_state.proyectos if p.fecha_creacion.year == anio_actual]) + 1
         return f"P-{anio_actual}-{numero:03d}"
-
+    
     def actualizar(self):
         self.fecha_ultima_actualizacion = datetime.now()
-
+    
     def solicitar_revision_preventa(self):
         st.session_state.solicitudes_revision.append({
             'id_proyecto': self.id,
@@ -63,15 +65,28 @@ class Proyecto:
 st.set_page_config(page_title="Dashboard de Oportunidades", layout="wide", page_icon="📊")
 st.title("📊 Dashboard de OPORTUNIDADES")
 
-# Sidebar para filtros
+# Sidebar para filtros y vista
 with st.sidebar:
+    st.header("Opciones de Visualización")
+    vista_modo = st.radio("Modo de vista:", ["Tarjetas", "Tabla"])
+    
     st.header("Filtros")
     filtro_ejecutivo = st.selectbox("Ejecutivo", ["Todos"] + st.session_state.ejecutivos)
     filtro_riesgo = st.selectbox("Estado de Riesgo", ["Todos", "Normal", "En Riesgo", "Crítico"])
+    
     st.divider()
     st.header("Estadísticas Rápidas")
     total_oportunidades = len(st.session_state.proyectos)
     st.metric("Total Oportunidades", total_oportunidades)
+
+# Función para determinar color según criticidad
+def get_color_risko(dias_sin_actualizar):
+    if dias_sin_actualizar > 15:
+        return "#ff4b4b"  # Rojo - Crítico
+    elif dias_sin_actualizar > 7:
+        return "#ffa64b"  # Naranja - En Riesgo
+    else:
+        return "#4caf50"   # Verde - Normal
 
 # Sección 1: KPIs y Métricas
 col1, col2, col3, col4 = st.columns(4)
@@ -100,7 +115,7 @@ with st.expander("➕ Crear Nueva Oportunidad", expanded=False):
             descripcion = st.text_area("Descripción Breve*")
             asignado_a = st.selectbox("Asignar a*", st.session_state.ejecutivos)
             codigo_convocatoria = st.text_input("Código de Convocatoria (Opcional)")
-
+        
         submitted = st.form_submit_button("Crear Oportunidad")
         if submitted:
             if nombre and cliente and descripcion:
@@ -117,7 +132,46 @@ with st.expander("➕ Crear Nueva Oportunidad", expanded=False):
             else:
                 st.error("Por favor complete todos los campos obligatorios (*)")
 
-# Sección 3: Lista de Oportunidades
+# Sección 3: Formulario de Edición (si está en modo edición)
+if st.session_state.editing_project is not None:
+    proyecto_editar = next((p for p in st.session_state.proyectos if p.id == st.session_state.editing_project), None)
+    if proyecto_editar:
+        with st.expander("✏️ Editando Oportunidad", expanded=True):
+            with st.form("form_editar_oportunidad"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nuevo_nombre = st.text_input("Nombre", value=proyecto_editar.nombre)
+                    nuevo_cliente = st.selectbox("Cliente", st.session_state.clientes, 
+                                               index=st.session_state.clientes.index(proyecto_editar.cliente) 
+                                               if proyecto_editar.cliente in st.session_state.clientes else 0)
+                    nuevo_valor = st.number_input("Valor Estimado", value=proyecto_editar.valor_estimado)
+                with col2:
+                    nueva_descripcion = st.text_area("Descripción", value=proyecto_editar.descripcion)
+                    nuevo_asignado = st.selectbox("Asignado a", st.session_state.ejecutivos,
+                                                index=st.session_state.ejecutivos.index(proyecto_editar.asignado_a)
+                                                if proyecto_editar.asignado_a in st.session_state.ejecutivos else 0)
+                    nuevo_codigo_conv = st.text_input("Código Convocatoria", value=proyecto_editar.codigo_convocatoria or "")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("💾 Guardar Cambios"):
+                        proyecto_editar.nombre = nuevo_nombre
+                        proyecto_editar.cliente = nuevo_cliente
+                        proyecto_editar.valor_estimado = nuevo_valor
+                        proyecto_editar.descripcion = nueva_descripcion
+                        proyecto_editar.asignado_a = nuevo_asignado
+                        proyecto_editar.codigo_convocatoria = nuevo_codigo_conv if nuevo_codigo_conv else None
+                        proyecto_editar.actualizar()
+                        proyecto_editar.historial.append(f"{datetime.now()}: Oportunidad editada")
+                        st.session_state.editing_project = None
+                        st.success("✅ Cambios guardados exitosamente!")
+                        st.rerun()
+                with col2:
+                    if st.form_submit_button("❌ Cancelar"):
+                        st.session_state.editing_project = None
+                        st.rerun()
+
+# Sección 4: Lista de Oportunidades (Tarjetas o Tabla)
 st.header("📋 Lista de Oportunidades")
 
 # Aplicar filtros
@@ -128,11 +182,53 @@ if filtro_ejecutivo != "Todos":
 
 if filtro_riesgo != "Todos":
     dias_limite = 15 if filtro_riesgo == "Crítico" else 7 if filtro_riesgo == "En Riesgo" else 0
-    proyectos_filtrados = [p for p in proyectos_filtrados
+    proyectos_filtrados = [p for p in proyectos_filtrados 
                           if (datetime.now() - p.fecha_ultima_actualizacion).days >= dias_limite]
 
-# Mostrar tabla de oportunidades
-if proyectos_filtrados:
+# VISTA DE TARJETAS
+if vista_modo == "Tarjetas" and proyectos_filtrados:
+    cols = st.columns(3)
+    for i, proyecto in enumerate(proyectos_filtrados):
+        dias_sin_actualizar = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
+        color = get_color_risko(dias_sin_actualizar)
+        
+        with cols[i % 3]:
+            with st.container():
+                # Tarjeta con color de fondo según criticidad
+                st.markdown(f"""
+                <div style="border: 2px solid {color}; border-radius: 10px; padding: 15px; margin: 10px 0; 
+                            background-color: {color}10;">
+                    <h4 style="color: {color}; margin-top: 0;">{proyecto.codigo_proyecto}</h4>
+                    <p><strong>{proyecto.nombre}</strong></p>
+                    <p>👤 {proyecto.asignado_a}</p>
+                    <p>🏢 {proyecto.cliente}</p>
+                    <p>💰 ${proyecto.valor_estimado:,.0f}</p>
+                    <p>🎯 {proyecto.probabilidad_cierre}% probabilidad</p>
+                    <p>⏰ {dias_sin_actualizar} días sin actualizar</p>
+                    <p>📅 Próximo contacto: {proyecto.fecha_proximo_contacto.strftime('%d/%m/%y')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Botones de acción para la tarjeta
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar oportunidad"):
+                        st.session_state.editing_project = proyecto.id
+                        st.rerun()
+                with col2:
+                    if st.button("📤", key=f"prev_{proyecto.id}", help="Solicitar Preventa"):
+                        proyecto.solicitar_revision_preventa()
+                        st.success("Solicitud de revisión enviada!")
+                        st.rerun()
+                with col3:
+                    if st.button("❌", key=f"close_{proyecto.id}", help="Cerrar Oportunidad"):
+                        proyecto.estado_actual = Estado.CERRADO_PERDIDO
+                        proyecto.historial.append(f"{datetime.now()}: Oportunidad cerrada como perdida")
+                        st.success("Oportunidad cerrada!")
+                        st.rerun()
+
+# VISTA DE TABLA (como antes)
+elif vista_modo == "Tabla" and proyectos_filtrados:
     data = []
     for proyecto in proyectos_filtrados:
         dias_sin_actualizar = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
@@ -142,7 +238,7 @@ if proyectos_filtrados:
             estado_riesgo = "En Riesgo"
         else:
             estado_riesgo = "Normal"
-
+        
         data.append({
             "Código": proyecto.codigo_proyecto,
             "Nombre": proyecto.nombre,
@@ -153,53 +249,60 @@ if proyectos_filtrados:
             "Próximo Contacto": proyecto.fecha_proximo_contacto.strftime("%d/%m/%Y"),
             "Días sin Actualizar": dias_sin_actualizar,
             "Riesgo": estado_riesgo,
-            "Acciones": proyecto.id  # Para identificar el proyecto en acciones
+            "Acciones": proyecto.id
         })
-
+    
     df = pd.DataFrame(data)
-
-    # Función para aplicar estilo de color según el riesgo
+    
     def color_risko(val):
         color = 'red' if val == 'Crítico' else 'orange' if val == 'En Riesgo' else 'green'
         return f'color: {color}; font-weight: bold'
-
+    
     styled_df = df.style.applymap(color_risko, subset=['Riesgo'])
     st.dataframe(styled_df, hide_index=True, use_container_width=True)
-
-    # Botones de acción para cada proyecto
+    
+    # Botones de acción para cada proyecto en vista tabla
     for proyecto in proyectos_filtrados:
         with st.expander(f"Acciones para {proyecto.codigo_proyecto}", expanded=False):
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
+                if st.button(f"✏️ Editar", key=f"edit_tab_{proyecto.id}"):
+                    st.session_state.editing_project = proyecto.id
+                    st.rerun()
+            with col2:
                 if st.button(f"📞 Registrar Contacto", key=f"contact_{proyecto.id}"):
                     proyecto.fecha_ultima_actualizacion = datetime.now()
                     proyecto.fecha_proximo_contacto = datetime.now() + timedelta(days=random.randint(2, 7))
                     proyecto.historial.append(f"{datetime.now()}: Contacto registrado con el cliente")
                     st.success("Contacto registrado exitosamente!")
-            with col2:
+                    st.rerun()
+            with col3:
                 if st.button(f"📤 Solicitar Preventa", key=f"prev_{proyecto.id}"):
                     proyecto.solicitar_revision_preventa()
                     st.success("Solicitud de revisión enviada a gerencia!")
-            with col3:
-                if st.button(f"❌ Cerrar Oportunidad", key=f"close_{proyecto.id}"):
+                    st.rerun()
+            with col4:
+                if st.button(f"❌ Cerrar", key=f"close_{proyecto.id}"):
                     proyecto.estado_actual = Estado.CERRADO_PERDIDO
                     proyecto.historial.append(f"{datetime.now()}: Oportunidad cerrada como perdida")
                     st.success("Oportunidad cerrada exitosamente!")
+                    st.rerun()
+
 else:
     st.info("No hay oportunidades que coincidan con los filtros aplicados.")
 
-# Sección 4: Solicitudes de Revisión (solo visible para gerentes)
+# Sección 5: Solicitudes de Revisión (solo visible para gerentes)
 if st.session_state.solicitudes_revision:
     st.header("📨 Solicitudes de Revisión para Preventa")
     for solicitud in st.session_state.solicitudes_revision:
         proyecto = next((p for p in st.session_state.proyectos if p.id == solicitud['id_proyecto']), None)
-        if proyecto:
+        if proyecto and solicitud['estado'] == 'PENDIENTE':
             with st.expander(f"Solicitud de {solicitud['solicitante']} - {proyecto.codigo_proyecto}"):
                 st.write(f"**Proyecto:** {proyecto.nombre}")
                 st.write(f"**Cliente:** {proyecto.cliente}")
                 st.write(f"**Valor Estimado:** ${proyecto.valor_estimado:,.0f}")
                 st.write(f"**Solicitado el:** {solicitud['fecha_solicitud'].strftime('%d/%m/%Y %H:%M')}")
-
+                
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(f"✅ Aprobar", key=f"approve_{solicitud['id_proyecto']}"):
@@ -207,7 +310,9 @@ if st.session_state.solicitudes_revision:
                         proyecto.probabilidad_cierre = 70
                         solicitud['estado'] = 'APROBADO'
                         st.success("Oportunidad movida a PREVENTA!")
+                        st.rerun()
                 with col2:
                     if st.button(f"❌ Rechazar", key=f"reject_{solicitud['id_proyecto']}"):
                         solicitud['estado'] = 'RECHAZADO'
                         st.success("Solicitud rechazada!")
+                        st.rerun()
