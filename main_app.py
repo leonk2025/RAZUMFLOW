@@ -37,17 +37,18 @@ if not st.session_state.proyectos:
             )
         )
 
-# Lee parámetro ?edit=ID (click en el icono dentro de la tarjeta)
-params = st.experimental_get_query_params()
-if "edit" in params:
+# ==============================
+# Manejo de parámetros de query
+# ==============================
+if "edit" in st.query_params:
     try:
-        st.session_state.editando = int(params["edit"][0])
+        st.session_state.editando = int(st.query_params["edit"])
     except:
         st.session_state.editando = None
 
 def _clear_query_edit():
-    # Borra el query param ?edit
-    st.experimental_set_query_params()
+    if "edit" in st.query_params:
+        del st.query_params["edit"]
 
 def _close_editor():
     st.session_state.editando = None
@@ -187,12 +188,12 @@ for estado, col in cols_map.items():
 
         if estado == Estado.OPORTUNIDAD:
             if st.button("📊 Gestionar Oportunidades", key="btn_oportunidades", use_container_width=True):
-                st.switch_page("pages/1_Oportunidades.py")
+                st.switch_page("1_Oportunidades.py")
         else:
             st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
 
 # ==============================
-# Panel lateral de edición (fiable y completo)
+# Panel lateral de edición
 # ==============================
 if st.session_state.editando:
     proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
@@ -202,7 +203,7 @@ if st.session_state.editando:
             st.header(f"✏️ Editar Proyecto #{proyecto.id}")
             st.caption(f"Código: **{proyecto.codigo_proyecto}** • Estado actual: **{proyecto.estado_actual.value}**")
 
-            # --- Formulario principal (campos de 1_Oportunidades) ---
+            # --- Formulario ---
             with st.form(f"form_edit_{proyecto.id}", clear_on_submit=False):
                 nuevo_nombre = st.text_input("Nombre", proyecto.nombre)
                 nuevo_cliente = st.text_input("Cliente", proyecto.cliente)
@@ -234,7 +235,6 @@ if st.session_state.editando:
                     proyecto.probabilidad_cierre = nueva_prob
                     proyecto.asignado_a = nuevo_asignado
                     proyecto.estado_actual = nuevo_estado
-                    # fecha próximo contacto
                     proyecto.fecha_proximo_contacto = datetime.combine(nueva_fecha_contacto, datetime.min.time()) + timedelta(hours=9)
                     proyecto.codigo_convocatoria = nuevo_codigo_convocatoria or None
                     proyecto.valor_contratado = nuevo_valor_contratado
@@ -247,7 +247,7 @@ if st.session_state.editando:
 
             st.markdown("---")
 
-            # --- Acciones rápidas como en Oportunidades ---
+            # --- Acciones rápidas ---
             st.subheader("Acciones")
             c1, c2 = st.columns(2)
             if c1.button("📨 Solicitar revisión Preventa"):
