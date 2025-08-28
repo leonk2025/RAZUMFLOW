@@ -46,21 +46,29 @@ proyectos = obtener_proyectos_ejemplo()
 # CSS para el estilo Kanban
 st.markdown("""
 <style>
+.kanban-container {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 10px 0;
+}
 .kanban-column {
     background-color: #f8f9fa;
     border-radius: 10px;
     padding: 15px;
-    margin: 5px;
     min-height: 600px;
     border: 2px solid #e9ecef;
+    min-width: 280px;
+    flex: 1;
 }
 .kanban-header {
     text-align: center;
-    padding: 10px;
+    padding: 12px;
     margin-bottom: 15px;
     border-radius: 8px;
     font-weight: bold;
     color: white;
+    font-size: 14px;
 }
 .project-card {
     background: white;
@@ -77,12 +85,22 @@ st.markdown("""
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 .count-badge {
-    background-color: #6c757d;
-    color: white;
-    border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 12px;
+    background-color: white;
+    color: #6c757d;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin-left: 8px;
+    font-size: 12px;
+}
+.empty-state {
+    text-align: center;
+    color: #6c757d;
+    padding: 40px 20px;
+    font-style: italic;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -114,122 +132,101 @@ nombres_estados = {
     'postventa': 'POSTVENTA'
 }
 
-# Función para crear una tarjeta de proyecto
-def crear_tarjeta_proyecto(proyecto, estado):
+# Función para crear el HTML completo de una columna Kanban
+def crear_columna_kanban(estado, proyectos_estado):
     color = colores_estados[estado]
+    count = len(proyectos_estado)
 
-    # Determinar información adicional según el estado
-    info_extra = ""
-    if estado == 'oportunidades':
-        dias = proyecto['dias_sin_actualizar']
-        color_estado = "#28a745" if dias < 3 else "#ffc107" if dias < 7 else "#dc3545"
-        info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⏰ {dias} días sin actualizar</div>"
-    elif estado == 'preventa':
-        info_extra = f"<div style='color: #6c757d; font-size: 12px;'>⏳ {proyecto['dias_espera']} días en espera</div>"
-    elif estado == 'delivery':
-        info_extra = f"<div style='color: #007bff; font-size: 12px;'>📊 {proyecto['progreso']}% completado</div>"
-    elif estado == 'cobranza':
-        color_estado = "#dc3545" if proyecto['dias_vencido'] > 10 else "#ffc107"
-        info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⚠️ {proyecto['dias_vencido']} días vencido</div>"
-    elif estado == 'postventa':
-        info_extra = f"<div style='color: #6c757d; font-size: 12px;'>📅 {proyecto['dias_restantes']} días restantes</div>"
+    # Construir el HTML de las tarjetas de proyecto
+    proyectos_html = ""
+    for proyecto in proyectos_estado:
+        # Determinar información adicional según el estado
+        info_extra = ""
+        if estado == 'oportunidades':
+            dias = proyecto['dias_sin_actualizar']
+            color_estado = "#28a745" if dias < 3 else "#ffc107" if dias < 7 else "#dc3545"
+            info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⏰ {dias} días sin actualizar</div>"
+        elif estado == 'preventa':
+            info_extra = f"<div style='color: #6c757d; font-size: 12px;'>⏳ {proyecto['dias_espera']} días en espera</div>"
+        elif estado == 'delivery':
+            info_extra = f"<div style='color: #007bff; font-size: 12px;'>📊 {proyecto['progreso']}% completado</div>"
+        elif estado == 'cobranza':
+            color_estado = "#dc3545" if proyecto['dias_vencido'] > 10 else "#ffc107"
+            info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⚠️ {proyecto['dias_vencido']} días vencido</div>"
+        elif estado == 'postventa':
+            info_extra = f"<div style='color: #6c757d; font-size: 12px;'>📅 {proyecto['dias_restantes']} días restantes</div>"
 
-    tarjeta_html = f"""
-    <div class="project-card" style="border-left-color: {color};">
-        <div style="font-weight: bold; margin-bottom: 5px;">{proyecto['nombre']}</div>
-        <div style="color: #6c757d; font-size: 12px; margin-bottom: 3px;">🏢 {proyecto['cliente']}</div>
-        <div style="color: #6c757d; font-size: 12px; margin-bottom: 3px;">👤 {proyecto['ejecutivo']}</div>
-        <div style="color: #28a745; font-weight: bold; margin-bottom: 5px;">💰 ${proyecto['valor']:,.0f}</div>
-        {info_extra}
+        proyectos_html += f"""
+        <div class="project-card" style="border-left-color: {color};">
+            <div style="font-weight: bold; margin-bottom: 5px; font-size: 14px;">{proyecto['nombre']}</div>
+            <div style="color: #6c757d; font-size: 11px; margin-bottom: 3px;">🏢 {proyecto['cliente']}</div>
+            <div style="color: #6c757d; font-size: 11px; margin-bottom: 3px;">👤 {proyecto['ejecutivo']}</div>
+            <div style="color: #28a745; font-weight: bold; margin-bottom: 5px; font-size: 13px;">💰 ${proyecto['valor']:,.0f}</div>
+            {info_extra}
+        </div>
+        """
+
+    # Si no hay proyectos, mostrar estado vacío
+    if count == 0:
+        proyectos_html = f"""
+        <div class="empty-state">
+            <div style="font-size: 48px; margin-bottom: 10px;">{iconos_estados[estado]}</div>
+            <div>No hay proyectos</div>
+            <div style="font-size: 12px; margin-top: 5px;">en este estado</div>
+        </div>
+        """
+
+    # Construir el HTML completo de la columna
+    columna_html = f"""
+    <div class="kanban-column">
+        <div class="kanban-header" style="background-color: {color};">
+            {iconos_estados[estado]} {nombres_estados[estado]}
+            <span class="count-badge">{count}</span>
+        </div>
+        {proyectos_html}
     </div>
     """
-    return tarjeta_html
+
+    return columna_html
 
 # Crear las 5 columnas del Kanban
 st.markdown("## 📋 Vista General del Workflow")
-st.markdown("### Arrastra visualmente los proyectos entre estados (simulación)")
+st.markdown("### Visualiza el flujo de proyectos entre estados")
 
-col1, col2, col3, col4, col5 = st.columns(5)
+# Contenedor principal Kanban
+kanban_html = """
+<div class="kanban-container">
+"""
 
-with col1:
-    estado = 'oportunidades'
-    color = colores_estados[estado]
-    count = len(proyectos[estado])
-    st.markdown(f"""
-    <div class="kanban-header" style="background-color: {color};">
-        {iconos_estados[estado]} {nombres_estados[estado]}
-        <span class="count-badge">{count}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
-    for proyecto in proyectos[estado]:
-        st.markdown(crear_tarjeta_proyecto(proyecto, estado), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# Agregar cada columna al contenedor
+for estado, proyectos_estado in proyectos.items():
+    kanban_html += crear_columna_kanban(estado, proyectos_estado)
+
+kanban_html += """
+</div>
+"""
+
+# Renderizar el Kanban completo
+st.markdown(kanban_html, unsafe_allow_html=True)
+
+# Botones de acción debajo de cada columna
+st.markdown("<br>", unsafe_allow_html=True)
+accion_cols = st.columns(5)
+
+with accion_cols[0]:
     if st.button("📊 Gestionar Oportunidades", key="btn_kanban_oportunidades", use_container_width=True):
         st.switch_page("pages/1_Oportunidades.py")
 
-with col2:
-    estado = 'preventa'
-    color = colores_estados[estado]
-    count = len(proyectos[estado])
-    st.markdown(f"""
-    <div class="kanban-header" style="background-color: {color};">
-        {iconos_estados[estado]} {nombres_estados[estado]}
-        <span class="count-badge">{count}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
-    for proyecto in proyectos[estado]:
-        st.markdown(crear_tarjeta_proyecto(proyecto, estado), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+with accion_cols[1]:
     st.button("⏳ Próximamente", key="btn_kanban_preventa", disabled=True, use_container_width=True)
 
-with col3:
-    estado = 'delivery'
-    color = colores_estados[estado]
-    count = len(proyectos[estado])
-    st.markdown(f"""
-    <div class="kanban-header" style="background-color: {color};">
-        {iconos_estados[estado]} {nombres_estados[estado]}
-        <span class="count-badge">{count}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
-    for proyecto in proyectos[estado]:
-        st.markdown(crear_tarjeta_proyecto(proyecto, estado), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+with accion_cols[2]:
     st.button("⏳ Próximamente", key="btn_kanban_delivery", disabled=True, use_container_width=True)
 
-with col4:
-    estado = 'cobranza'
-    color = colores_estados[estado]
-    count = len(proyectos[estado])
-    st.markdown(f"""
-    <div class="kanban-header" style="background-color: {color};">
-        {iconos_estados[estado]} {nombres_estados[estado]}
-        <span class="count-badge">{count}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
-    for proyecto in proyectos[estado]:
-        st.markdown(crear_tarjeta_proyecto(proyecto, estado), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+with accion_cols[3]:
     st.button("⏳ Próximamente", key="btn_kanban_cobranza", disabled=True, use_container_width=True)
 
-with col5:
-    estado = 'postventa'
-    color = colores_estados[estado]
-    count = len(proyectos[estado])
-    st.markdown(f"""
-    <div class="kanban-header" style="background-color: {color};">
-        {iconos_estados[estado]} {nombres_estados[estado]}
-        <span class="count-badge">{count}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
-    for proyecto in proyectos[estado]:
-        st.markdown(crear_tarjeta_proyecto(proyecto, estado), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+with accion_cols[4]:
     st.button("⏳ Próximamente", key="btn_kanban_postventa", disabled=True, use_container_width=True)
 
 # Resumen general
@@ -242,12 +239,12 @@ for i, (estado, proyectos_list) in enumerate(proyectos.items()):
         color = colores_estados[estado]
         total_valor = sum(p['valor'] for p in proyectos_list)
         st.markdown(f"""
-        <div style="text-align: center; padding: 10px; background-color: {color}20; border-radius: 10px;">
-            <div style="font-size: 24px; color: {color};">{iconos_estados[estado]}</div>
-            <div style="font-weight: bold; color: {color};">{nombres_estados[estado]}</div>
-            <div style="font-size: 18px; font-weight: bold;">{len(proyectos_list)}</div>
-            <div style="font-size: 12px; color: #6c757d;">proyectos</div>
-            <div style="font-size: 14px; color: {color}; font-weight: bold;">${total_valor:,.0f}</div>
+        <div style="text-align: center; padding: 15px; background-color: {color}20; border-radius: 10px; border: 2px solid {color}40;">
+            <div style="font-size: 28px; color: {color}; margin-bottom: 5px;">{iconos_estados[estado]}</div>
+            <div style="font-weight: bold; color: {color}; font-size: 14px; margin-bottom: 8px;">{nombres_estados[estado]}</div>
+            <div style="font-size: 20px; font-weight: bold; color: {color};">{len(proyectos_list)}</div>
+            <div style="font-size: 11px; color: #6c757d; margin-bottom: 8px;">proyectos</div>
+            <div style="font-size: 16px; color: {color}; font-weight: bold;">${total_valor:,.0f}</div>
         </div>
         """, unsafe_allow_html=True)
 
