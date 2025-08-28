@@ -1,7 +1,7 @@
 # main_app.py
 import streamlit as st
-from datetime import datetime, timedelta
-import random
+from datetime import datetime
+import pandas as pd
 
 # Configuración de la página
 st.set_page_config(
@@ -43,68 +43,6 @@ def obtener_proyectos_ejemplo():
 
 proyectos = obtener_proyectos_ejemplo()
 
-# CSS para el estilo Kanban
-st.markdown("""
-<style>
-.kanban-container {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 10px 0;
-}
-.kanban-column {
-    background-color: #f8f9fa;
-    border-radius: 10px;
-    padding: 15px;
-    min-height: 600px;
-    border: 2px solid #e9ecef;
-    min-width: 280px;
-    flex: 1;
-}
-.kanban-header {
-    text-align: center;
-    padding: 12px;
-    margin-bottom: 15px;
-    border-radius: 8px;
-    font-weight: bold;
-    color: white;
-    font-size: 14px;
-}
-.project-card {
-    background: white;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 10px 0;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    border-left: 4px solid;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-.project-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-.count-badge {
-    background-color: white;
-    color: #6c757d;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 8px;
-    font-size: 12px;
-}
-.empty-state {
-    text-align: center;
-    color: #6c757d;
-    padding: 40px 20px;
-    font-style: italic;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # Colores para cada estado
 colores_estados = {
     'oportunidades': '#FF6B6B',
@@ -132,102 +70,148 @@ nombres_estados = {
     'postventa': 'POSTVENTA'
 }
 
-# Función para crear el HTML completo de una columna Kanban
-def crear_columna_kanban(estado, proyectos_estado):
-    color = colores_estados[estado]
-    count = len(proyectos_estado)
-
-    # Construir el HTML de las tarjetas de proyecto
-    proyectos_html = ""
-    for proyecto in proyectos_estado:
-        # Determinar información adicional según el estado
-        info_extra = ""
-        if estado == 'oportunidades':
-            dias = proyecto['dias_sin_actualizar']
-            color_estado = "#28a745" if dias < 3 else "#ffc107" if dias < 7 else "#dc3545"
-            info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⏰ {dias} días sin actualizar</div>"
-        elif estado == 'preventa':
-            info_extra = f"<div style='color: #6c757d; font-size: 12px;'>⏳ {proyecto['dias_espera']} días en espera</div>"
-        elif estado == 'delivery':
-            info_extra = f"<div style='color: #007bff; font-size: 12px;'>📊 {proyecto['progreso']}% completado</div>"
-        elif estado == 'cobranza':
-            color_estado = "#dc3545" if proyecto['dias_vencido'] > 10 else "#ffc107"
-            info_extra = f"<div style='color: {color_estado}; font-size: 12px;'>⚠️ {proyecto['dias_vencido']} días vencido</div>"
-        elif estado == 'postventa':
-            info_extra = f"<div style='color: #6c757d; font-size: 12px;'>📅 {proyecto['dias_restantes']} días restantes</div>"
-
-        proyectos_html += f"""
-        <div class="project-card" style="border-left-color: {color};">
-            <div style="font-weight: bold; margin-bottom: 5px; font-size: 14px;">{proyecto['nombre']}</div>
-            <div style="color: #6c757d; font-size: 11px; margin-bottom: 3px;">🏢 {proyecto['cliente']}</div>
-            <div style="color: #6c757d; font-size: 11px; margin-bottom: 3px;">👤 {proyecto['ejecutivo']}</div>
-            <div style="color: #28a745; font-weight: bold; margin-bottom: 5px; font-size: 13px;">💰 ${proyecto['valor']:,.0f}</div>
-            {info_extra}
-        </div>
-        """
-
-    # Si no hay proyectos, mostrar estado vacío
-    if count == 0:
-        proyectos_html = f"""
-        <div class="empty-state">
-            <div style="font-size: 48px; margin-bottom: 10px;">{iconos_estados[estado]}</div>
-            <div>No hay proyectos</div>
-            <div style="font-size: 12px; margin-top: 5px;">en este estado</div>
-        </div>
-        """
-
-    # Construir el HTML completo de la columna
-    columna_html = f"""
-    <div class="kanban-column">
-        <div class="kanban-header" style="background-color: {color};">
-            {iconos_estados[estado]} {nombres_estados[estado]}
-            <span class="count-badge">{count}</span>
-        </div>
-        {proyectos_html}
-    </div>
-    """
-
-    return columna_html
-
 # Crear las 5 columnas del Kanban
 st.markdown("## 📋 Vista General del Workflow")
 st.markdown("### Visualiza el flujo de proyectos entre estados")
 
-# Contenedor principal Kanban
-kanban_html = """
-<div class="kanban-container">
-"""
+# Contenedor principal con columnas
+col1, col2, col3, col4, col5 = st.columns(5)
 
-# Agregar cada columna al contenedor
-for estado, proyectos_estado in proyectos.items():
-    kanban_html += crear_columna_kanban(estado, proyectos_estado)
+# Función para crear una tarjeta de proyecto con Streamlit nativo
+def crear_tarjeta_proyecto(proyecto, estado):
+    color = colores_estados[estado]
 
-kanban_html += """
-</div>
-"""
+    with st.container():
+        # Usar markdown para el borde izquierdo de color
+        st.markdown(f"<div style='border-left: 4px solid {color}; padding-left: 10px;'>", unsafe_allow_html=True)
 
-# Renderizar el Kanban completo
-st.markdown(kanban_html, unsafe_allow_html=True)
+        # Información del proyecto
+        st.markdown(f"**{proyecto['nombre']}**")
+        st.caption(f"🏢 {proyecto['cliente']}")
+        st.caption(f"👤 {proyecto['ejecutivo']}")
+        st.markdown(f"💰 **${proyecto['valor']:,.0f}**")
 
-# Botones de acción debajo de cada columna
-st.markdown("<br>", unsafe_allow_html=True)
-accion_cols = st.columns(5)
+        # Información adicional según el estado
+        if estado == 'oportunidades':
+            dias = proyecto['dias_sin_actualizar']
+            color_estado = "green" if dias < 3 else "orange" if dias < 7 else "red"
+            st.caption(f"⏰ :{color_estado}[{dias} días sin actualizar]")
+        elif estado == 'preventa':
+            st.caption(f"⏳ {proyecto['dias_espera']} días en espera")
+        elif estado == 'delivery':
+            st.caption(f"📊 {proyecto['progreso']}% completado")
+        elif estado == 'cobranza':
+            color_estado = "red" if proyecto['dias_vencido'] > 10 else "orange"
+            st.caption(f"⚠️ :{color_estado}[{proyecto['dias_vencido']} días vencido]")
+        elif estado == 'postventa':
+            st.caption(f"📅 {proyecto['dias_restantes']} días restantes")
 
-with accion_cols[0]:
-    if st.button("📊 Gestionar Oportunidades", key="btn_kanban_oportunidades", use_container_width=True):
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("---")
+
+# 🎯 COLUMNA 1: OPORTUNIDADES
+with col1:
+    estado = 'oportunidades'
+    color = colores_estados[estado]
+
+    # Header de la columna
+    st.markdown(f"""
+    <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
+        <h3 style='margin: 0;'>🎯 OPORTUNIDADES</h3>
+        <div style='background-color: white; color: {color}; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;'>
+            {len(proyectos[estado])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Proyectos de oportunidades
+    for proyecto in proyectos[estado]:
+        with st.container():
+            crear_tarjeta_proyecto(proyecto, estado)
+
+    # Botón de acción
+    if st.button("📊 Gestionar Oportunidades", key="btn_oportunidades", use_container_width=True):
         st.switch_page("pages/1_Oportunidades.py")
 
-with accion_cols[1]:
-    st.button("⏳ Próximamente", key="btn_kanban_preventa", disabled=True, use_container_width=True)
+# 📋 COLUMNA 2: PREVENTA
+with col2:
+    estado = 'preventa'
+    color = colores_estados[estado]
 
-with accion_cols[2]:
-    st.button("⏳ Próximamente", key="btn_kanban_delivery", disabled=True, use_container_width=True)
+    st.markdown(f"""
+    <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
+        <h3 style='margin: 0;'>📋 PREVENTA</h3>
+        <div style='background-color: white; color: {color}; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;'>
+            {len(proyectos[estado])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-with accion_cols[3]:
-    st.button("⏳ Próximamente", key="btn_kanban_cobranza", disabled=True, use_container_width=True)
+    for proyecto in proyectos[estado]:
+        with st.container():
+            crear_tarjeta_proyecto(proyecto, estado)
 
-with accion_cols[4]:
-    st.button("⏳ Próximamente", key="btn_kanban_postventa", disabled=True, use_container_width=True)
+    st.button("⏳ Próximamente", key="btn_preventa", disabled=True, use_container_width=True)
+
+# 🚀 COLUMNA 3: DELIVERY
+with col3:
+    estado = 'delivery'
+    color = colores_estados[estado]
+
+    st.markdown(f"""
+    <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
+        <h3 style='margin: 0;'>🚀 DELIVERY</h3>
+        <div style='background-color: white; color: {color}; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;'>
+            {len(proyectos[estado])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for proyecto in proyectos[estado]:
+        with st.container():
+            crear_tarjeta_proyecto(proyecto, estado)
+
+    st.button("⏳ Próximamente", key="btn_delivery", disabled=True, use_container_width=True)
+
+# 💰 COLUMNA 4: COBRANZA
+with col4:
+    estado = 'cobranza'
+    color = colores_estados[estado]
+
+    st.markdown(f"""
+    <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
+        <h3 style='margin: 0;'>💰 COBRANZA</h3>
+        <div style='background-color: white; color: {color}; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;'>
+            {len(proyectos[estado])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for proyecto in proyectos[estado]:
+        with st.container():
+            crear_tarjeta_proyecto(proyecto, estado)
+
+    st.button("⏳ Próximamente", key="btn_cobranza", disabled=True, use_container_width=True)
+
+# 🔧 COLUMNA 5: POSTVENTA
+with col5:
+    estado = 'postventa'
+    color = colores_estados[estado]
+
+    st.markdown(f"""
+    <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
+        <h3 style='margin: 0;'>🔧 POSTVENTA</h3>
+        <div style='background-color: white; color: {color}; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;'>
+            {len(proyectos[estado])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for proyecto in proyectos[estado]:
+        with st.container():
+            crear_tarjeta_proyecto(proyecto, estado)
+
+    st.button("⏳ Próximamente", key="btn_postventa", disabled=True, use_container_width=True)
 
 # Resumen general
 st.markdown("---")
@@ -238,13 +222,14 @@ for i, (estado, proyectos_list) in enumerate(proyectos.items()):
     with resumen_cols[i]:
         color = colores_estados[estado]
         total_valor = sum(p['valor'] for p in proyectos_list)
+
         st.markdown(f"""
-        <div style="text-align: center; padding: 15px; background-color: {color}20; border-radius: 10px; border: 2px solid {color}40;">
-            <div style="font-size: 28px; color: {color}; margin-bottom: 5px;">{iconos_estados[estado]}</div>
-            <div style="font-weight: bold; color: {color}; font-size: 14px; margin-bottom: 8px;">{nombres_estados[estado]}</div>
-            <div style="font-size: 20px; font-weight: bold; color: {color};">{len(proyectos_list)}</div>
-            <div style="font-size: 11px; color: #6c757d; margin-bottom: 8px;">proyectos</div>
-            <div style="font-size: 16px; color: {color}; font-weight: bold;">${total_valor:,.0f}</div>
+        <div style='text-align: center; padding: 15px; background-color: {color}20; border-radius: 10px; border: 2px solid {color};'>
+            <div style='font-size: 24px;'>{iconos_estados[estado]}</div>
+            <div style='font-weight: bold; color: {color};'>{nombres_estados[estado]}</div>
+            <div style='font-size: 20px; font-weight: bold;'>{len(proyectos_list)}</div>
+            <div style='font-size: 12px;'>proyectos</div>
+            <div style='font-size: 16px; font-weight: bold; color: {color};'>${total_valor:,.0f}</div>
         </div>
         """, unsafe_allow_html=True)
 
