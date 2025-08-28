@@ -91,6 +91,9 @@ def cargar_proyectos():
         proyectos = []
         for row in rows:
             try:
+                # DEBUG: Mostrar estructura de la fila
+                # st.write(f"Fila con {len(row)} columnas: {row}")
+                
                 # Manejar dinámicamente según número de columnas
                 if len(row) == 11:  # Versión antigua sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
@@ -111,10 +114,11 @@ def cargar_proyectos():
                      fecha_update, historial) = row
                     activo = 1
                     
-                elif len(row) == 14:  # Con todas las columnas
+                elif len(row) == 14:  # Con todas las columnas - ORDEN CORREGIDO
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
-                     tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
+                     tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
                      fecha_update, historial, activo) = row
+                    estado = estado_actual  # Renombrar para consistencia
                     
                 else:
                     st.error(f"❌ Estructura de tabla inesperada: {len(row)} columnas")
@@ -143,21 +147,29 @@ def cargar_proyectos():
                     st.warning(f"⚠️ Estado desconocido '{estado}' para proyecto {codigo}. Usando OPORTUNIDAD.")
                     p.estado_actual = Estado.OPORTUNIDAD
 
-                p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
-                p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
+                # Convertir fechas
+                try:
+                    p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
+                except ValueError:
+                    p.fecha_creacion = datetime.now()
+                    
+                try:
+                    p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
+                except ValueError:
+                    p.fecha_ultima_actualizacion = datetime.now()
 
-                # CORRECCIÓN: Manejar historial JSON - FORMA ROBUSTA
+                # Manejar historial JSON - FORMA ROBUSTA
                 if historial:
                     try:
-                        # Si es una lista JSON
+                        # Si es una lista JSON (comienza con [)
                         if isinstance(historial, str) and historial.strip().startswith('['):
                             p.historial = json.loads(historial)
                         else:
-                            # Si es un string simple
+                            # Si es un string simple, crear lista con ese string
                             p.historial = [str(historial)]
-                    except (json.JSONDecodeError, AttributeError):
-                        # Si hay error, crear lista con el contenido
-                        p.historial = [str(historial)]
+                    except (json.JSONDecodeError, AttributeError, TypeError) as e:
+                        # Si hay error, crear lista vacía
+                        p.historial = [f"Error cargando historial: {str(e)}"]
                 else:
                     p.historial = []
 
