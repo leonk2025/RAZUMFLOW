@@ -1,4 +1,6 @@
 # 1_Oportunidades.py
+# Import time para los sleep
+import time
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -589,5 +591,3 @@ with col3:
 st.markdown("---")
 st.caption(f"💾 Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')} | 📊 {len(proyectos_filtrados)} oportunidades mostradas")
 
-# Import time para los sleep
-import time
