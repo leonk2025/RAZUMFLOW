@@ -9,6 +9,8 @@ if 'proyectos' not in st.session_state:
     st.session_state.proyectos = []
 if 'solicitudes_revision' not in st.session_state:
     st.session_state.solicitudes_revision = []
+if 'editando' not in st.session_state:
+    st.session_state.editando = None  # ID del proyecto en edición
 
 # Cargar proyectos de ejemplo solo si la lista está vacía
 if not st.session_state.proyectos:
@@ -87,11 +89,13 @@ def crear_tarjeta_proyecto(proyecto, estado):
         margin-bottom: 10px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
         font-size: 14px;
+        position: relative;
     '>
         <strong>{proyecto.nombre}</strong><br>
         <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
         <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
         <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
+    </div>
     """, unsafe_allow_html=True)
 
     dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
@@ -99,16 +103,11 @@ def crear_tarjeta_proyecto(proyecto, estado):
     if estado == Estado.OPORTUNIDAD:
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
         st.markdown(f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>", unsafe_allow_html=True)
-    elif estado == Estado.PREVENTA:
-        st.markdown(f"<span style='font-size:12px;'>⏳ En preventa</span>", unsafe_allow_html=True)
-    elif estado == Estado.DELIVERY:
-        st.markdown(f"<span style='font-size:12px;'>📊 En delivery</span>", unsafe_allow_html=True)
-    elif estado == Estado.COBRANZA:
-        st.markdown(f"<span style='font-size:12px;'>⚠️ En cobranza</span>", unsafe_allow_html=True)
-    elif estado == Estado.POSTVENTA:
-        st.markdown(f"<span style='font-size:12px;'>📅 En postventa</span>", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Botón de edición
+    if st.button("✏️ Editar", key=f"edit_{proyecto.id}"):
+        st.session_state.editando = proyecto.id
+        st.rerun()
 
 # ==============================
 # Construcción del tablero Kanban
@@ -150,6 +149,48 @@ for estado, col in cols_map.items():
             st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
 
 # ==============================
+# Modal de edición de proyecto
+# ==============================
+if st.session_state.editando:
+    proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
+    if proyecto:
+        st.markdown("""
+        <div style="position: fixed; top:0; left:0; width:100%; height:100%;
+                    background-color: rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:1000;">
+          <div style="background-color:white; padding:30px; border-radius:15px; width:500px; box-shadow:0px 0px 10px black;">
+        """, unsafe_allow_html=True)
+
+        st.subheader(f"✏️ Editar Proyecto #{proyecto.id}")
+
+        with st.form("editar_proyecto"):
+            nuevo_nombre = st.text_input("Nombre", proyecto.nombre)
+            nuevo_cliente = st.text_input("Cliente", proyecto.cliente)
+            nuevo_valor = st.number_input("Valor estimado", value=proyecto.valor_estimado, step=1000)
+            nuevo_asignado = st.text_input("Asignado a", proyecto.asignado_a)
+            nueva_descripcion = st.text_area("Descripción", proyecto.descripcion)
+
+            col1, col2 = st.columns(2)
+            guardar = col1.form_submit_button("💾 Guardar cambios")
+            cancelar = col2.form_submit_button("❌ Cancelar")
+
+            if guardar:
+                proyecto.nombre = nuevo_nombre
+                proyecto.cliente = nuevo_cliente
+                proyecto.valor_estimado = nuevo_valor
+                proyecto.asignado_a = nuevo_asignado
+                proyecto.descripcion = nueva_descripcion
+                proyecto.actualizar()
+                st.session_state.editando = None
+                st.success("✅ Proyecto actualizado correctamente")
+                st.rerun()
+
+            if cancelar:
+                st.session_state.editando = None
+                st.rerun()
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+# ==============================
 # Resumen general
 # ==============================
 st.markdown("---")
@@ -177,5 +218,4 @@ for i, estado in enumerate(cols_map.keys()):
 # ==============================
 st.markdown("---")
 st.markdown(f"*Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}*")
-st.caption("💡 **Haz clic en 'Gestionar Oportunidades' para ver el dashboard detallado**")
-
+st.caption("💡 **Haz clic en 'Editar' para modificar proyectos directamente en el main**")
