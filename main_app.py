@@ -89,21 +89,10 @@ flujo_estados = [
 ]
 
 # ==============================
-# Manejo de query params
+# Funciones auxiliares
 # ==============================
-if "edit" in st.query_params:
-    try:
-        st.session_state.editando = int(st.query_params["edit"])
-    except:
-        st.session_state.editando = None
-
-def _clear_query_edit():
-    if "edit" in st.query_params:
-        del st.query_params["edit"]
-
 def _close_editor():
     st.session_state.editando = None
-    _clear_query_edit()
     st.session_state.proyectos = cargar_proyectos()
     st.rerun()
 
@@ -122,17 +111,6 @@ st.markdown("""
   box-shadow: 2px 2px 6px rgba(0,0,0,0.07);
   font-size: 14px;
 }
-.card .edit-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  text-decoration: none;
-  padding: 4px 7px;
-  border-radius: 8px;
-  background: rgba(0,0,0,0.05);
-  font-size: 13px;
-}
-.card .edit-btn:hover { background: rgba(0,0,0,0.12); }
 .section-header {
   color: white; padding: 14px; border-radius: 10px; text-align:center; margin-bottom: 14px;
 }
@@ -177,7 +155,6 @@ st.title("🏢 Workflow de Gestión de Proyectos")
 st.markdown("---")
 st.markdown("## 📋 Vista General del Workflow")
 st.markdown("### Visualiza el flujo de proyectos entre estados")
-st.markdown("<div id='edit-panel'></div>", unsafe_allow_html=True)
 
 # ==============================
 # Función para tarjetas
@@ -191,36 +168,24 @@ def crear_tarjeta_proyecto(proyecto, estado):
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
         extra_line = f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>"
 
-    st.markdown(f"""
-    <div class='card' style='border-color:{color};'>
+    # Crear contenedor para la tarjeta con botón
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
         st.markdown(f"""
-<div class='card' style='border-color:{color};'>
-    <div style="position:absolute; top:6px; right:6px;">
-        <form action="#" method="get">
-            <button name="edit" value="{proyecto.id}" style="
-                background:rgba(0,0,0,0.05);
-                border:none;
-                border-radius:8px;
-                cursor:pointer;
-                font-size:13px;
-                padding:4px 7px;
-            ">✏️</button>
-        </form>
-    </div>
-    <strong>{proyecto.nombre}</strong><br>
-    <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
-    <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
-    <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
-    {extra_line}
-</div>
-""", unsafe_allow_html=True)
-        <strong>{proyecto.nombre}</strong><br>
-        <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
-        <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
-        <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
-        {extra_line}
-    </div>
-    """, unsafe_allow_html=True)
+        <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
+            <strong>{proyecto.nombre}</strong><br>
+            <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
+            <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
+            <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
+            {extra_line}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar proyecto"):
+            st.session_state.editando = proyecto.id
+            st.rerun()
 
 # ==============================
 # Construcción del tablero Kanban
@@ -344,4 +309,4 @@ for i, estado in enumerate(cols_map.keys()):
 # ==============================
 st.markdown("---")
 st.markdown(f"*Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}*")
-st.caption("💡 Haz clic en el ícono ✏️ dentro de cada tarjeta para editar sin salir del main")
+st.caption("💡 Haz clic en el ícono ✏️ de cada tarjeta para editar el proyecto")
