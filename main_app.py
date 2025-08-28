@@ -91,9 +91,6 @@ def cargar_proyectos():
         proyectos = []
         for row in rows:
             try:
-                # DEBUG: Mostrar estructura de la fila
-                # st.write(f"Fila con {len(row)} columnas: {row}")
-                
                 # Manejar dinámicamente según número de columnas
                 if len(row) == 11:  # Versión antigua sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
@@ -114,11 +111,11 @@ def cargar_proyectos():
                      fecha_update, historial) = row
                     activo = 1
                     
-                elif len(row) == 14:  # Con todas las columnas - ORDEN CORREGIDO
+                elif len(row) == 14:  # ORDEN CORREGIDO - VERIFICADO
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
                      fecha_update, historial, activo) = row
-                    estado = estado_actual  # Renombrar para consistencia
+                    estado = estado_actual  # Usar nombre consistente
                     
                 else:
                     st.error(f"❌ Estructura de tabla inesperada: {len(row)} columnas")
@@ -147,15 +144,21 @@ def cargar_proyectos():
                     st.warning(f"⚠️ Estado desconocido '{estado}' para proyecto {codigo}. Usando OPORTUNIDAD.")
                     p.estado_actual = Estado.OPORTUNIDAD
 
-                # Convertir fechas
+                # Convertir fechas de forma segura
                 try:
-                    p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
-                except ValueError:
+                    if isinstance(fecha_creacion, str) and 'T' in fecha_creacion:
+                        p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
+                    else:
+                        p.fecha_creacion = datetime.now()
+                except (ValueError, TypeError):
                     p.fecha_creacion = datetime.now()
                     
                 try:
-                    p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
-                except ValueError:
+                    if isinstance(fecha_update, str) and 'T' in fecha_update:
+                        p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
+                    else:
+                        p.fecha_ultima_actualizacion = datetime.now()
+                except (ValueError, TypeError):
                     p.fecha_ultima_actualizacion = datetime.now()
 
                 # Manejar historial JSON - FORMA ROBUSTA
