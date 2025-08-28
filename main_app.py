@@ -123,7 +123,7 @@ def cargar_proyectos():
                 # Solo procesar proyectos activos
                 if activo == 0:
                     continue
-
+                    
                 p = Proyecto(
                     nombre=nombre,
                     cliente=cliente,
@@ -146,11 +146,20 @@ def cargar_proyectos():
                 p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
                 p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
 
-                # Manejar historial JSON
-                try:
-                    p.historial = json.loads(historial) if historial else []
-                except json.JSONDecodeError:
-                    p.historial = [historial] if historial else []
+                # CORRECCIÓN: Manejar historial JSON - FORMA ROBUSTA
+                if historial:
+                    try:
+                        # Si es una lista JSON
+                        if isinstance(historial, str) and historial.strip().startswith('['):
+                            p.historial = json.loads(historial)
+                        else:
+                            # Si es un string simple
+                            p.historial = [str(historial)]
+                    except (json.JSONDecodeError, AttributeError):
+                        # Si hay error, crear lista con el contenido
+                        p.historial = [str(historial)]
+                else:
+                    p.historial = []
 
                 proyectos.append(p)
 
