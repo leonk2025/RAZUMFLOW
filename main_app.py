@@ -1,4 +1,3 @@
-# main_app.py
 import streamlit as st
 from datetime import datetime
 import pandas as pd
@@ -77,44 +76,47 @@ st.markdown("### Visualiza el flujo de proyectos entre estados")
 # Contenedor principal con columnas
 col1, col2, col3, col4, col5 = st.columns(5)
 
-# Función para crear una tarjeta de proyecto con Streamlit nativo
+# Función para crear una tarjeta de proyecto mejorada
 def crear_tarjeta_proyecto(proyecto, estado):
     color = colores_estados[estado]
 
-    with st.container():
-        # Usar markdown para el borde izquierdo de color
-        st.markdown(f"<div style='border-left: 4px solid {color}; padding-left: 10px;'>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style='
+        border: 2px solid {color};
+        border-radius: 10px;
+        background-color: #ffffff;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        font-size: 14px;
+    '>
+        <strong>{proyecto['nombre']}</strong><br>
+        <span style="font-size:12px;">🏢 {proyecto['cliente']}</span><br>
+        <span style="font-size:12px;">👤 {proyecto['ejecutivo']}</span><br>
+        <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto['valor']:,.0f}</span><br>
+    """, unsafe_allow_html=True)
 
-        # Información del proyecto
-        st.markdown(f"**{proyecto['nombre']}**")
-        st.caption(f"🏢 {proyecto['cliente']}")
-        st.caption(f"👤 {proyecto['ejecutivo']}")
-        st.markdown(f"💰 **${proyecto['valor']:,.0f}**")
+    if estado == 'oportunidades':
+        dias = proyecto['dias_sin_actualizar']
+        color_estado = "green" if dias < 3 else "orange" if dias < 7 else "red"
+        st.markdown(f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias} días sin actualizar</span>", unsafe_allow_html=True)
+    elif estado == 'preventa':
+        st.markdown(f"<span style='font-size:12px;'>⏳ {proyecto['dias_espera']} días en espera</span>", unsafe_allow_html=True)
+    elif estado == 'delivery':
+        st.markdown(f"<span style='font-size:12px;'>📊 {proyecto['progreso']}% completado</span>", unsafe_allow_html=True)
+    elif estado == 'cobranza':
+        color_estado = "red" if proyecto['dias_vencido'] > 10 else "orange"
+        st.markdown(f"<span style='font-size:12px; color:{color_estado};'>⚠️ {proyecto['dias_vencido']} días vencido</span>", unsafe_allow_html=True)
+    elif estado == 'postventa':
+        st.markdown(f"<span style='font-size:12px;'>📅 {proyecto['dias_restantes']} días restantes</span>", unsafe_allow_html=True)
 
-        # Información adicional según el estado
-        if estado == 'oportunidades':
-            dias = proyecto['dias_sin_actualizar']
-            color_estado = "green" if dias < 3 else "orange" if dias < 7 else "red"
-            st.caption(f"⏰ :{color_estado}[{dias} días sin actualizar]")
-        elif estado == 'preventa':
-            st.caption(f"⏳ {proyecto['dias_espera']} días en espera")
-        elif estado == 'delivery':
-            st.caption(f"📊 {proyecto['progreso']}% completado")
-        elif estado == 'cobranza':
-            color_estado = "red" if proyecto['dias_vencido'] > 10 else "orange"
-            st.caption(f"⚠️ :{color_estado}[{proyecto['dias_vencido']} días vencido]")
-        elif estado == 'postventa':
-            st.caption(f"📅 {proyecto['dias_restantes']} días restantes")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # 🎯 COLUMNA 1: OPORTUNIDADES
 with col1:
     estado = 'oportunidades'
     color = colores_estados[estado]
 
-    # Header de la columna
     st.markdown(f"""
     <div style='background-color: {color}; color: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px;'>
         <h3 style='margin: 0;'>🎯 OPORTUNIDADES</h3>
@@ -124,12 +126,10 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
-    # Proyectos de oportunidades
     for proyecto in proyectos[estado]:
         with st.container():
             crear_tarjeta_proyecto(proyecto, estado)
 
-    # Botón de acción
     if st.button("📊 Gestionar Oportunidades", key="btn_oportunidades", use_container_width=True):
         st.switch_page("pages/1_Oportunidades.py")
 
