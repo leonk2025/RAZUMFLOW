@@ -91,18 +91,37 @@ def cargar_proyectos():
         proyectos = []
         for row in rows:
             try:
-                # Manejar diferentes estructuras de tabla
+                # Manejar dinámicamente según número de columnas
                 if len(row) == 11:  # Versión antigua sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
                      estado, fecha_creacion, fecha_update, historial) = row
                     moneda = 'PEN'
                     tipo_cambio_historico = 3.80
-                elif len(row) == 13:  # Con moneda y tipo_cambio_historico
+                    activo = 1
+                    
+                elif len(row) == 12:  # Con activo pero sin moneda
+                    (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
+                     estado, fecha_creacion, fecha_update, historial, activo) = row
+                    moneda = 'PEN'
+                    tipo_cambio_historico = 3.80
+                    
+                elif len(row) == 13:  # Con moneda pero sin activo
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
                      fecha_update, historial) = row
+                    activo = 1
+                    
+                elif len(row) == 14:  # Con todas las columnas
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
+                     fecha_update, historial, activo) = row
+                    
                 else:
                     st.error(f"❌ Estructura de tabla inesperada: {len(row)} columnas")
+                    continue
+
+                # Solo procesar proyectos activos
+                if activo == 0:
                     continue
 
                 p = Proyecto(
