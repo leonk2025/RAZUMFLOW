@@ -3,6 +3,7 @@ import sqlite3
 import json
 from datetime import datetime
 from models import Proyecto, Estado
+import requests
 
 # ==============================
 # Configuración inicial
@@ -10,6 +11,20 @@ from models import Proyecto, Estado
 st.set_page_config(page_title="Workflow de Proyectos", page_icon="🏢", layout="wide")
 
 DB_PATH = "proyectos.db"
+
+# ==============================
+# Función para obtener tipo de cambio SUNAT
+# ==============================
+def obtener_tipo_cambio_actual():
+    """Obtiene el tipo de cambio actual desde SUNAT"""
+    try:
+        url = "https://api.apis.net.pe/v1/tipo-cambio-sunat"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        return data['venta']  # Precio de venta SUNAT
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo obtener tipo de cambio SUNAT: {str(e)}")
+        return 3.80  # Valor por defecto
 
 # ==============================
 # Funciones de Base de Datos
@@ -21,7 +36,7 @@ def verificar_y_crear_tabla():
     """Verifica que la tabla existe y la crea si es necesario"""
     conn = get_connection()
     c = conn.cursor()
-    
+
     # Verificar si la tabla existe
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='proyectos'")
     if not c.fetchone():
@@ -34,6 +49,8 @@ def verificar_y_crear_tabla():
                 cliente TEXT NOT NULL,
                 descripcion TEXT,
                 valor_estimado REAL DEFAULT 0,
+                moneda TEXT DEFAULT 'PEN',
+                tipo_cambio_historico REAL DEFAULT 3.80,
                 asignado_a TEXT,
                 estado_actual TEXT DEFAULT 'OPORTUNIDAD',
                 fecha_creacion TEXT NOT NULL,
@@ -44,15 +61,23 @@ def verificar_y_crear_tabla():
         """)
         conn.commit()
         st.success("✅ Tabla de proyectos creada exitosamente!")
-    
-    # Verificar si existe la columna 'activo'
+
+    # Verificar columnas de moneda
     c.execute("PRAGMA table_info(proyectos)")
     columns = [column[1] for column in c.fetchall()]
-    
+
+    if 'moneda' not in columns:
+        c.execute("ALTER TABLE proyectos ADD COLUMN moneda TEXT DEFAULT 'PEN'")
+        conn.commit()
+
+    if 'tipo_cambio_historico' not in columns:
+        c.execute("ALTER TABLE proyectos ADD COLUMN tipo_cambio_historico REAL DEFAULT 3.80")
+        conn.commit()
+
     if 'activo' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN activo INTEGER DEFAULT 1")
         conn.commit()
-    
+
     conn.close()
 
 def cargar_proyectos():
@@ -67,12 +92,15 @@ def cargar_proyectos():
         for row in rows:
             try:
                 # Manejar diferentes estructuras de tabla
-                if len(row) == 11:  # Sin columna activo
+                if len(row) == 11:  # Versión antigua sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
                      estado, fecha_creacion, fecha_update, historial) = row
-                elif len(row) == 12:  # Con columna activo
-                    (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
-                     estado, fecha_creacion, fecha_update, historial, activo) = row
+                    moneda = 'PEN'
+                    tipo_cambio_historico = 3.80
+                elif len(row) == 13:  # Con moneda y tipo_cambio_historico
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
+                     fecha_update, historial) = row
                 else:
                     st.error(f"❌ Estructura de tabla inesperada: {len(row)} columnas")
                     continue
@@ -82,38 +110,40 @@ def cargar_proyectos():
                     cliente=cliente,
                     valor_estimado=valor,
                     descripcion=descripcion,
-                    asignado_a=asignado_a
+                    asignado_a=asignado_a,
+                    moneda=moneda,
+                    tipo_cambio_historico=tipo_cambio_historico
                 )
                 p.id = id_
                 p.codigo_proyecto = codigo
-                
+
                 # Verificar que el estado existe en el enum
                 try:
                     p.estado_actual = Estado[estado]
                 except KeyError:
                     st.warning(f"⚠️ Estado desconocido '{estado}' para proyecto {codigo}. Usando OPORTUNIDAD.")
                     p.estado_actual = Estado.OPORTUNIDAD
-                
+
                 p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
                 p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
-                
+
                 # Manejar historial JSON
                 try:
                     p.historial = json.loads(historial) if historial else []
                 except json.JSONDecodeError:
                     p.historial = [historial] if historial else []
-                
+
                 proyectos.append(p)
-                
+
             except Exception as e:
                 st.error(f"❌ Error procesando proyecto {row[0] if row else 'desconocido'}: {str(e)}")
                 continue
-        
+
         return proyectos
-    
+
     except sqlite3.OperationalError as e:
         if "no such table" in str(e):
-            st.error("❌ La tabla 'proyectos' no existe. Ejecuta el script init_database.py primero.")
+            st.error("❌ La tabla 'proyectos' no existe. Ejecuta el script crear_proyectos_db.py primero.")
             st.stop()
         else:
             st.error(f"❌ Error de base de datos: {str(e)}")
@@ -128,14 +158,17 @@ def actualizar_proyecto(proyecto: Proyecto):
         c = conn.cursor()
         c.execute("""
             UPDATE proyectos
-            SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, asignado_a=?,
-                estado_actual=?, fecha_ultima_actualizacion=?, historial=?
+            SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, moneda=?,
+                tipo_cambio_historico=?, asignado_a=?, estado_actual=?, 
+                fecha_ultima_actualizacion=?, historial=?
             WHERE id=?
         """, (
             proyecto.nombre,
             proyecto.cliente,
             proyecto.descripcion,
             proyecto.valor_estimado,
+            proyecto.moneda,
+            proyecto.tipo_cambio_historico,
             proyecto.asignado_a,
             proyecto.estado_actual.name,
             proyecto.fecha_ultima_actualizacion.isoformat(),
@@ -152,17 +185,19 @@ def actualizar_proyecto(proyecto: Proyecto):
 # ==============================
 try:
     verificar_y_crear_tabla()
-    
+
     if "proyectos" not in st.session_state:
         st.session_state.proyectos = cargar_proyectos()
     if "editando" not in st.session_state:
         st.session_state.editando = None
-        
+    if "tipo_cambio_actual" not in st.session_state:
+        st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
+
 except Exception as e:
     st.error("❌ Error crítico inicializando la aplicación:")
     st.error(str(e))
     st.info("💡 **Solución sugerida:**")
-    st.code("python init_database.py", language="bash")
+    st.code("python crear_proyectos_db.py", language="bash")
     st.stop()
 
 # ==============================
@@ -183,6 +218,13 @@ def _close_editor():
     st.session_state.editando = None
     st.session_state.proyectos = cargar_proyectos()
     st.rerun()
+
+def convertir_a_pen(valor, moneda):
+    """Convierte un valor a PEN usando el tipo de cambio actual"""
+    if moneda == 'PEN':
+        return valor
+    else:
+        return valor * st.session_state.tipo_cambio_actual
 
 # ==============================
 # Estilos CSS
@@ -207,11 +249,17 @@ st.markdown("""
   display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
 }
 .status-info {
-  background: #f0f9ff; 
-  border: 1px solid #0ea5e9; 
-  border-radius: 8px; 
-  padding: 12px; 
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 8px;
+  padding: 12px;
   margin: 16px 0;
+}
+.moneda-badge {
+  font-size: 10px; 
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -250,20 +298,22 @@ st.title("🏢 Workflow de Gestión de Proyectos")
 
 # Mostrar información del estado de la base de datos
 if st.session_state.proyectos:
+    # Calcular totales EN PEN
+    total_valor_pen = sum(convertir_a_pen(p.valor_estimado, p.moneda) for p in st.session_state.proyectos)
     total_proyectos = len(st.session_state.proyectos)
-    valor_total = sum(p.valor_estimado for p in st.session_state.proyectos)
-    
+
     st.markdown(f"""
     <div class="status-info">
-        <strong>📊 Estado del Sistema:</strong> {total_proyectos} proyectos activos | 
-        💰 Valor total: ${valor_total:,.0f} | 
+        <strong>📊 Estado del Sistema:</strong> {total_proyectos} proyectos activos |
+        💰 Valor total: <strong>S/ {total_valor_pen:,.0f}</strong> |
+        💵 Tipo cambio: S/ {st.session_state.tipo_cambio_actual:.2f} por $1 |
         📅 Última carga: {datetime.now().strftime('%H:%M:%S')}
     </div>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
     <div class="status-info">
-        <strong>ℹ️ Sistema iniciado:</strong> No hay proyectos en el sistema. 
+        <strong>ℹ️ Sistema iniciado:</strong> No hay proyectos en el sistema.
         <a href="pages/1_Oportunidades.py">Crear nueva oportunidad →</a>
     </div>
     """, unsafe_allow_html=True)
@@ -284,20 +334,33 @@ def crear_tarjeta_proyecto(proyecto, estado):
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
         extra_line = f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>"
 
+    # Convertir valor a PEN para mostrar
+    valor_pen = convertir_a_pen(proyecto.valor_estimado, proyecto.moneda)
+    moneda_badge_color = "#4CAF50" if proyecto.moneda == 'PEN' else "#2196F3"
+    moneda_text = "S/ " if proyecto.moneda == 'PEN' else "$ "
+
     # Crear contenedor para la tarjeta con botón
     col1, col2 = st.columns([4, 1])
-    
+
     with col1:
         st.markdown(f"""
         <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
             <strong>{proyecto.nombre}</strong><br>
             <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
             <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
-            <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
+            <span style="font-size:13px; font-weight:bold; color:{color};">
+                💰 {moneda_text}{proyecto.valor_estimado:,.0f}
+                <span class='moneda-badge' style='background:{moneda_badge_color}; color:white;'>
+                    {proyecto.moneda}
+                </span>
+            </span><br>
+            <span style="font-size:12px; color:#666;">
+                ≈ S/ {valor_pen:,.0f}
+            </span><br>
             {extra_line}
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col2:
         if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar proyecto"):
             st.session_state.editando = proyecto.id
@@ -348,9 +411,9 @@ else:
     st.info("🚀 ¡Bienvenido! No hay proyectos en el sistema aún.")
     st.markdown("### Para comenzar:")
     st.markdown("1. 📊 Ve a **Gestionar Oportunidades**")
-    st.markdown("2. ➕ Crea tu primera oportunidad") 
+    st.markdown("2. ➕ Crea tu primera oportunidad")
     st.markdown("3. 🔄 Observa cómo fluye por los estados")
-    
+
     st.page_link("pages/1_Oportunidades.py", label="🚀 Crear Primera Oportunidad")
 
 # ==============================
@@ -368,7 +431,13 @@ if st.session_state.editando:
                 nuevo_nombre = st.text_input("Nombre", proyecto.nombre)
                 nuevo_cliente = st.text_input("Cliente", proyecto.cliente)
                 nueva_descripcion = st.text_area("Descripción", proyecto.descripcion)
-                nuevo_valor = st.number_input("Valor estimado", min_value=0, step=1000, value=int(proyecto.valor_estimado))
+                
+                col_moneda, col_valor = st.columns(2)
+                with col_moneda:
+                    nueva_moneda = st.selectbox("Moneda", ["PEN", "USD"], index=0 if proyecto.moneda == "PEN" else 1)
+                with col_valor:
+                    nuevo_valor = st.number_input("Valor estimado", min_value=0, step=1000, value=int(proyecto.valor_estimado))
+                
                 nuevo_asignado = st.text_input("Asignado a", proyecto.asignado_a)
 
                 col1, col2 = st.columns(2)
@@ -383,6 +452,7 @@ if st.session_state.editando:
                         proyecto.cliente = nuevo_cliente
                         proyecto.descripcion = nueva_descripcion
                         proyecto.valor_estimado = nuevo_valor
+                        proyecto.moneda = nueva_moneda
                         proyecto.asignado_a = nuevo_asignado
                         proyecto.fecha_ultima_actualizacion = datetime.now()
                         proyecto.historial.append(f"Editado el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
@@ -444,7 +514,9 @@ if st.session_state.proyectos:
     for i, estado in enumerate(flujo_estados):
         proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado]
         color = colores_estados[estado]
-        total_valor = sum(p.valor_estimado for p in proyectos_estado)
+        
+        # Calcular total EN PEN
+        total_valor_pen = sum(convertir_a_pen(p.valor_estimado, p.moneda) for p in proyectos_estado)
 
         with resumen_cols[i]:
             st.markdown(f"""
@@ -453,7 +525,7 @@ if st.session_state.proyectos:
                 <div style='font-weight: bold; color: {color};'>{nombres_estados[estado]}</div>
                 <div style='font-size: 20px; font-weight: bold;'>{len(proyectos_estado)}</div>
                 <div style='font-size: 12px;'>proyectos</div>
-                <div style='font-size: 16px; font-weight: bold; color: {color};'>${total_valor:,.0f}</div>
+                <div style='font-size: 16px; font-weight: bold; color: {color};'>S/ {total_valor_pen:,.0f}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -472,5 +544,6 @@ with col2:
 # Botón de refresh de datos
 if st.button("🔄 Actualizar Datos", help="Recargar datos desde la base de datos"):
     st.session_state.proyectos = cargar_proyectos()
+    st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
     st.success("✅ Datos actualizados!")
     st.rerun()
