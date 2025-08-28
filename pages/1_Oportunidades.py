@@ -198,7 +198,7 @@ def get_estado_riesgo(dias_sin_actualizar):
 # Título y navegación
 # ==============================
 st.title("📊 Dashboard de OPORTUNIDADES")
-st.page_link("main_app6-integraciondb.py", label="🔙 Volver al Workflow Principal")
+st.page_link("main_app.py", label="🔙 Volver al Workflow Principal")
 
 # ==============================
 # Cargar datos
@@ -583,7 +583,7 @@ with col2:
 
 with col3:
     st.markdown("### 🔗 Navegación")
-    st.page_link("main_app6-integraciondb.py", label="🏠 Workflow Principal")
+    st.page_link("main_app.py", label="🏠 Workflow Principal")
     st.write("💾 Todos los cambios se guardan automáticamente")
 
 st.markdown("---")
