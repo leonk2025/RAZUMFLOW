@@ -193,7 +193,27 @@ def crear_tarjeta_proyecto(proyecto, estado):
 
     st.markdown(f"""
     <div class='card' style='border-color:{color};'>
-        <a class='edit-btn' href='?edit={proyecto.id}#edit-panel' title='Editar'>✏️</a>
+        st.markdown(f"""
+<div class='card' style='border-color:{color};'>
+    <div style="position:absolute; top:6px; right:6px;">
+        <form action="#" method="get">
+            <button name="edit" value="{proyecto.id}" style="
+                background:rgba(0,0,0,0.05);
+                border:none;
+                border-radius:8px;
+                cursor:pointer;
+                font-size:13px;
+                padding:4px 7px;
+            ">✏️</button>
+        </form>
+    </div>
+    <strong>{proyecto.nombre}</strong><br>
+    <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
+    <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
+    <span style="font-size:13px; font-weight:bold; color:{color};">💰 ${proyecto.valor_estimado:,.0f}</span><br>
+    {extra_line}
+</div>
+""", unsafe_allow_html=True)
         <strong>{proyecto.nombre}</strong><br>
         <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
         <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
