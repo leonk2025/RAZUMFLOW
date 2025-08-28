@@ -186,7 +186,8 @@ for estado, col in cols_map.items():
             with st.container():
                 crear_tarjeta_proyecto(proyecto, estado)
 
-       if estado == Estado.OPORTUNIDAD:
+        if estado == Estado.OPORTUNIDAD:
+            # 👉 ahora usa page_link
             st.page_link("pages/1_Oportunidades.py", label="📊 Gestionar Oportunidades")
         else:
             st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
