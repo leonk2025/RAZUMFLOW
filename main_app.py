@@ -9,7 +9,7 @@ st.set_page_config(page_title="Gestión de Proyectos", page_icon="📊", layout=
 DB_PATH = "proyectos.db"
 
 # ==============================
-# Funciones DB
+# Funciones de Base de Datos
 # ==============================
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -37,7 +37,7 @@ def cargar_proyectos():
         )
         p.id = id_
         p.codigo_proyecto = codigo
-        p.estado_actual = Estado[estado]
+        p.estado_actual = Estado[estado]   # se usa el Enum directamente
         p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
         p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
         p.historial = json.loads(historial)
@@ -78,12 +78,14 @@ if "editando" not in st.session_state:
 # Render del tablero Kanban
 # ==============================
 st.title("📊 Tablero de Proyectos")
-cols = st.columns(4)
+
+cols = st.columns(5)
 cols_map = {
     Estado.OPORTUNIDAD: cols[0],
     Estado.PREVENTA: cols[1],
     Estado.DELIVERY: cols[2],
-    Estado.CERRADO: cols[3],
+    Estado.COBRANZA: cols[3],
+    Estado.POSTVENTA: cols[4],
 }
 
 for estado, col in cols_map.items():
@@ -125,16 +127,16 @@ if st.session_state.editando is not None:
             proyecto.valor_estimado = st.number_input("Valor estimado", value=proyecto.valor_estimado, step=1000)
             proyecto.asignado_a = st.text_input("Asignado a", proyecto.asignado_a)
 
-            # Flujo lineal: solo avanzar/retroceder un estado
-            idx = list(Estado).index(proyecto.estado_actual)
+            # Flujo lineal: solo avanzar/retroceder un estado a la vez
+            idx = list(cols_map.keys()).index(proyecto.estado_actual)
             if idx > 0:
                 retroceder = st.form_submit_button("⬅️ Retroceder")
                 if retroceder:
-                    proyecto.estado_actual = list(Estado)[idx - 1]
-            if idx < len(Estado) - 1:
+                    proyecto.estado_actual = list(cols_map.keys())[idx - 1]
+            if idx < len(cols_map) - 1:
                 avanzar = st.form_submit_button("➡️ Avanzar")
                 if avanzar:
-                    proyecto.estado_actual = list(Estado)[idx + 1]
+                    proyecto.estado_actual = list(cols_map.keys())[idx + 1]
 
             guardar = st.form_submit_button("💾 Guardar cambios")
             if guardar:
@@ -142,4 +144,5 @@ if st.session_state.editando is not None:
                 proyecto.historial.append(f"Editado el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
                 actualizar_proyecto(proyecto)
                 st.session_state.editando = None
+                st.session_state.proyectos = cargar_proyectos()  # refrescar desde DB
                 st.rerun()
