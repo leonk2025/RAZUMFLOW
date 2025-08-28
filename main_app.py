@@ -308,3 +308,19 @@ for i, estado in enumerate(cols_map.keys()):
     total_valor = sum(p.valor_estimado for p in proyectos_estado)
 
     with resumen_cols[i]:
+        st.markdown(f"""
+        <div style='text-align: center; padding: 15px; background-color: {color}20; border-radius: 10px; border: 2px solid {color};'>
+            <div style='font-size: 24px;'>{iconos_estados[estado]}</div>
+            <div style='font-weight: bold; color: {color};'>{nombres_estados[estado]}</div>
+            <div style='font-size: 20px; font-weight: bold;'>{len(proyectos_estado)}</div>
+            <div style='font-size: 12px;'>proyectos</div>
+            <div style='font-size: 16px; font-weight: bold; color: {color};'>${total_valor:,.0f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ==============================
+# Footer
+# ==============================
+st.markdown("---")
+st.markdown(f"*Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}*")
+st.caption("💡 Haz clic en el ícono ✏️ dentro de cada tarjeta para editar sin salir del main")
