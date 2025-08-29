@@ -249,7 +249,7 @@ def actualizar_proyecto(proyecto: Proyecto):
             SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, moneda=?,
                 tipo_cambio_historico=?, asignado_a=?, estado_actual=?, 
                 fecha_ultima_actualizacion=?, fecha_deadline_propuesta=?, fecha_presentacion_cotizacion=?,
-                , historial=?
+                historial=?
             WHERE id=?
         """, (
             proyecto.nombre,
