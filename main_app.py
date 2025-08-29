@@ -582,25 +582,30 @@ if st.session_state.editando:
                 
                 nuevo_asignado = st.text_input("Asignado a", proyecto.asignado_a)
 
-                # Fechas adicionales
+                # Fechas adicionales - DESHABILITAR según el estado
                 col_fecha1, col_fecha2 = st.columns(2)
+                
                 with col_fecha1:
-                      if proyecto.estado_actual == Estado.PREVENTA:
-                        nueva_fecha_cotizacion = st.date_input(
-                            "Fecha presentación cotización",
-                            value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
-                            format="DD/MM/YYYY"
-                        )
-                    else:
-                        # No mostrar el campo para OPORTUNIDAD y otros estados
-                        nueva_fecha_cotizacion = None
+                    # Fecha de cotización - solo editable en PREVENTA
+                    disabled_cotizacion = proyecto.estado_actual != Estado.PREVENTA
+                    nueva_fecha_cotizacion = st.date_input(
+                        "Fecha presentación cotización",
+                        value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
+                        format="DD/MM/YYYY",
+                        disabled=disabled_cotizacion,
+                        help="Solo editable en estado PREVENTA" if disabled_cotizacion else None
+                    )
+                
                 with col_fecha2:
+                    # Fecha deadline - solo editable en OPORTUNIDAD y PREVENTA
+                    disabled_deadline = proyecto.estado_actual not in [Estado.OPORTUNIDAD, Estado.PREVENTA]
                     nueva_fecha_deadline = st.date_input(
                         "Fecha deadline propuesta",
                         value=proyecto.fecha_deadline_propuesta.date() if proyecto.fecha_deadline_propuesta else None,
-                        format="DD/MM/YYYY"
+                        format="DD/MM/YYYY",
+                        disabled=disabled_deadline,
+                        help="Solo editable en estados OPORTUNIDAD y PREVENTA" if disabled_deadline else None
                     )
-
                 col1, col2 = st.columns(2)
                 with col1:
                     guardar = st.form_submit_button("💾 Guardar")
