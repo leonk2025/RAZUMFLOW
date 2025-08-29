@@ -731,7 +731,7 @@ elif vista_modo == "Tabla":
             "Deadline": info_deadline,
             "Estado Deadline": criticidad_deadline,
             "Días sin Actualizar": dias_sin_actualizar,
-            "Estado Riesgo": estado_riesgo,
+            #"Estado Riesgo": estado_riesgo,
             "ID": proyecto.id
         })
 
