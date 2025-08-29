@@ -621,10 +621,9 @@ elif vista_modo == "Tarjetas":
                 if proyecto.fecha_deadline_propuesta:
                     dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
                     texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
-                    deadline_html = {estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')}({texto_dias})
-                    
+                    deadline_html = f"""{estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')} ({texto_dias})"""
                 else:
-                    deadline_html = {estilo_deadline['icono']} Sin deadline
+                    deadline_html = f"{estilo_deadline['icono']} Sin deadline"
             
 
                 # Tarjeta con estilo basado en el deadline
