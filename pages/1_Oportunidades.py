@@ -586,80 +586,82 @@ if not proyectos_filtrados:
 # ==============================
 # VISTA DE TARJETAS
 # ==============================
+
 elif vista_modo == "Tarjetas":
     cols = st.columns(3)
 
     for i, proyecto in enumerate(proyectos_filtrados):
-        dias_sin_actualizar = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
-        color_riesgo = get_color_riesgo(dias_sin_actualizar)
-        estado_riesgo = get_estado_riesgo(dias_sin_actualizar)
-        
         # Calcular criticidad del deadline
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
         estilo_deadline = obtener_estilo_deadline(criticidad_deadline)
-        
+
         # Obtener información de moneda
         moneda_proyecto = getattr(proyecto, 'moneda', 'PEN')
         tipo_cambio = getattr(proyecto, 'tipo_cambio_historico', 3.80)
-        
+
         # Convertir valor a moneda de visualización
         valor_convertido = convertir_moneda(
-            proyecto.valor_estimado, 
-            moneda_proyecto, 
+            proyecto.valor_estimado,
+            moneda_proyecto,
             moneda_visualizacion,
             tipo_cambio
         )
-        
+
         # Formatear valor según moneda
         valor_formateado = formatear_moneda(valor_convertido, moneda_visualizacion)
-        
+
         # Calcular próximo contacto
         fecha_proximo_contacto = proyecto.fecha_ultima_actualizacion + timedelta(days=random.randint(1, 5))
 
         with cols[i % 3]:
             with st.container():
-                # Información del deadline
-                info_deadline = ""
+                # Información del deadline - construida directamente en el HTML
+                deadline_html = ""
                 if proyecto.fecha_deadline_propuesta:
                     dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
                     texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
-                    info_deadline = f"""
-                    <div style='background:{estilo_deadline['fondo']}; color:{estilo_deadline['color']}; 
-                                border:1px solid {estilo_deadline['color']}20; padding:4px 8px; border-radius:8px; 
+                    deadline_html = f"""
+                    <div style='background:{estilo_deadline['fondo']}; color:{estilo_deadline['color']};
+                                border:1px solid {estilo_deadline['color']}20; padding:4px 8px; border-radius:8px;
                                 margin:4px 0; font-size:11px;'>
                         {estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')}
                         <br>({texto_dias})
                     </div>
                     """
+                else:
+                    deadline_html = f"""
+                    <div style='background:{estilo_deadline['fondo']}; color:{estilo_deadline['color']};
+                                border:1px solid {estilo_deadline['color']}20; padding:4px 8px; border-radius:8px;
+                                margin:4px 0; font-size:11px;'>
+                        {estilo_deadline['icono']} Sin deadline
+                    </div>
+                    """
 
-                # Tarjeta con estilo
-                st.markdown(f""" <div style="
-                    border: 2px solid {color_riesgo};
+                # Tarjeta con estilo basado en el deadline
+                st.markdown(f"""
+                <div style="
+                    border: 2px solid {estilo_deadline['color']};
                     border-radius: 12px;
                     padding: 16px;
                     margin: 8px 0;
-                    background: linear-gradient(145deg, {color_riesgo}08, {color_riesgo}15);
+                    background: linear-gradient(145deg, {estilo_deadline['color']}08, {estilo_deadline['color']}15);
                     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 ">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <h4 style="color: {color_riesgo}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
-                        <span style="background: {color_riesgo}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">
-                            {estado_riesgo}
-                        </span>
+                        <h4 style="color: {estilo_deadline['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
                     </div>
                     <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
                     <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a}</p>
                     <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente}</p>
                     <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({moneda_proyecto})</small></p>
-                    <p style="margin: 4px 0; font-size: 11px; color: #666;">⏰ {dias_sin_actualizar} días sin actualizar</p>
-                    {info_deadline}
+                    {deadline_html}
                     <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Botones de acción
+                # Botones de acción (se mantienen igual)
                 col1, col2, col3, col4 = st.columns(4)
-
+               
                 with col1:
                     if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar oportunidad"):
                         st.session_state.editing_project = proyecto.id
