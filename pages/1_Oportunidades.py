@@ -633,8 +633,7 @@ elif vista_modo == "Tarjetas":
                     """
 
                 # Tarjeta con estilo
-                st.markdown(f"""
-                <div style="
+                st.markdown(f""" <div style="
                     border: 2px solid {color_riesgo};
                     border-radius: 12px;
                     padding: 16px;
