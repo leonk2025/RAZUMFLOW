@@ -731,7 +731,7 @@ elif vista_modo == "Tabla":
             "Deadline": info_deadline,
             "Estado Deadline": criticidad_deadline,
             "Días sin Actualizar": dias_sin_actualizar,
-            #"Estado Riesgo": estado_riesgo,
+            "Estado Riesgo": estado_riesgo,
             "ID": proyecto.id
         })
 
@@ -756,7 +756,7 @@ elif vista_modo == "Tabla":
             .applymap(aplicar_color_deadline, subset=['Estado Deadline'])
 
         # Mostrar tabla sin la columna ID
-        columnas_mostrar = [col for col in df.columns if col != "ID"]
+        columnas_mostrar = [col for col in df.columns if (col != "ID" or col !="Estado Riesgo")]
         st.dataframe(styled_df.format({"ID": lambda x: ""}),
                     column_config={"ID": None},
                     hide_index=True,
