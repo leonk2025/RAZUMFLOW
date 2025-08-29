@@ -585,11 +585,15 @@ if st.session_state.editando:
                 # Fechas adicionales
                 col_fecha1, col_fecha2 = st.columns(2)
                 with col_fecha1:
-                    nueva_fecha_cotizacion = st.date_input(
-                        "Fecha presentación cotización",
-                        value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
-                        format="DD/MM/YYYY"
-                    )
+                      if proyecto.estado_actual == Estado.PREVENTA:
+                        nueva_fecha_cotizacion = st.date_input(
+                            "Fecha presentación cotización",
+                            value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
+                            format="DD/MM/YYYY"
+                        )
+                    else:
+                        # No mostrar el campo para OPORTUNIDAD y otros estados
+                        nueva_fecha_cotizacion = None
                 with col_fecha2:
                     nueva_fecha_deadline = st.date_input(
                         "Fecha deadline propuesta",
