@@ -10,27 +10,25 @@ class Estado(Enum):
     POSTVENTA = "POSTVENTA"
 
 class Proyecto:
-    def __init__(self, nombre, cliente, valor_estimado, descripcion="", asignado_a=""):
+    def __init__(self, nombre, cliente, valor_estimado, descripcion="", asignado_a="", moneda="PEN", tipo_cambio_historico=3.80):
         self.id = None
         self.codigo_proyecto = self.generar_codigo()
         self.nombre = nombre
         self.cliente = cliente
         self.descripcion = descripcion
         self.valor_estimado = valor_estimado
-        self.moneda = "PEN"  # Valor por defecto
-        self.tipo_cambio_historico = 3.80  # Valor por defecto
+        self.moneda = moneda
+        self.tipo_cambio_historico = tipo_cambio_historico
         self.asignado_a = asignado_a
         self.estado_actual = Estado.OPORTUNIDAD
         self.fecha_creacion = datetime.now()
         self.fecha_ultima_actualizacion = datetime.now()
-        self.fecha_deadline_propuesta = None  # Nueva fecha opcional
-        self.fecha_presentacion_cotizacion = None  # Nueva fecha manual
+        self.fecha_deadline_propuesta = None
+        self.fecha_presentacion_cotizacion = None
         self.historial = []
         self.activo = True
-
-        # Campos adicionales opcionales
         self.codigo_convocatoria = None
-        self.probabilidad_cierre = 25  # Porcentaje default
+        self.probabilidad_cierre = 25
 
     def generar_codigo(self):
         """Genera un código único para el proyecto"""
