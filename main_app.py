@@ -316,7 +316,7 @@ def convertir_a_pen(valor, moneda):
 def obtener_estilo_deadline(nivel_alerta):
     """Devuelve estilo CSS según el nivel de alerta del deadline"""
     estilos = {
-        'vencido': {'color': '#dc2626', 'icono': '⚡', 'fondo': '#fef2f2'},
+        'vencido': {'color': '#666666', 'icono': '☠️', 'fondo': '#F5F5F5'},
         'critico': {'color': '#dc2626', 'icono': '🔥', 'fondo': '#fef2f2'},
         'muy_urgente': {'color': '#ea580c', 'icono': '⏰', 'fondo': '#fff7ed'},
         'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
