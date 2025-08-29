@@ -441,6 +441,23 @@ def crear_tarjeta_proyecto(proyecto, estado):
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
         extra_lines.append(f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>")
 
+    # Agregar esta lógica en la sección de PREVENTA:
+    if estado == Estado.PREVENTA:
+        if proyecto.fecha_presentacion_cotizacion:
+            # ✅ COTIZACIÓN PRESENTADA - Mostrar en verde
+            extra_lines.append(
+                f"<div style='color: #16a34a; font-size: 11px; margin-top: 4px;'>"
+                f"✅ Cotización presentada: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%y')}"
+                f"</div>"
+            )
+        else:
+            # ⏳ COTIZACIÓN PENDIENTE - Mostrar en naranja
+            extra_lines.append(
+                f"<div style='color: #ea580c; font-size: 11px; margin-top: 4px;'>"
+                f"⏳ Cotización en preparación"
+                f"</div>"
+            )
+        
     # Mostrar deadline en OPORTUNIDAD y PREVENTA
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
         nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
