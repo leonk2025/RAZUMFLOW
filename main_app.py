@@ -161,12 +161,12 @@ def cargar_proyectos():
                     cliente=cliente,
                     valor_estimado=valor,
                     descripcion=descripcion,
-                    asignado_a=asignado_a,
-                    moneda=moneda,
-                    tipo_cambio_historico=tipo_cambio_historico
+                    asignado_a=asignado_a
                 )
-                p.id = id_
-                p.codigo_proyecto = codigo
+                p.moneda = moneda
+                p.tipo_cambio_historico = tipo_cambio_historico
+                p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline) if fecha_deadline else None
+                p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion) if fecha_cotizacion else None
 
                 # Verificar que el estado existe en el enum
                 try:
