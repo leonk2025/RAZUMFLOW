@@ -1,200 +1,347 @@
-# main_app.py
 import streamlit as st
-import pandas as pd
 import sqlite3
 import json
-from datetime import datetime, timedelta
-from enum import Enum
-import plotly.express as px
-import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
+from datetime import datetime
+from models import Proyecto, Estado
+import requests
 
 # ==============================
-# Configuración de la página
+# Configuración inicial
 # ==============================
-st.set_page_config(
-    page_title="Sistema de Gestión de Proyectos",
-    page_icon="🚀",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Workflow de Proyectos", page_icon="🏢", layout="wide")
+
+DB_PATH = "proyectos.db"
 
 # ==============================
-# Enums y Clases
+# Función para obtener tipo de cambio SUNAT
 # ==============================
-class Estado(Enum):
-    OPORTUNIDAD = "OPORTUNIDAD"
-    PREVENTA = "PREVENTA"
-    DELIVERY = "DELIVERY"
-    COBRANZA = "COBRANZA"
-    POSTVENTA = "POSTVENTA"
-
-class Proyecto:
-    def __init__(self, nombre, cliente, valor_estimado, descripcion="", asignado_a=""):
-        self.id = None
-        self.codigo_proyecto = self.generar_codigo()
-        self.nombre = nombre
-        self.cliente = cliente
-        self.descripcion = descripcion
-        self.valor_estimado = valor_estimado
-        self.moneda = "PEN"
-        self.tipo_cambio_historico = 3.80
-        self.asignado_a = asignado_a
-        self.estado_actual = Estado.OPORTUNIDAD
-        self.fecha_creacion = datetime.now()
-        self.fecha_ultima_actualizacion = datetime.now()
-        self.fecha_deadline_propuesta = None
-        self.fecha_presentacion_cotizacion = None
-        self.historial = []
-        self.activo = True
-        self.codigo_convocatoria = None
-        self.probabilidad_cierre = 25
-
-    def generar_codigo(self):
-        import random
-        return f"OPP-{datetime.now().year}-{random.randint(1000, 9999)}"
-
-    def agregar_evento_historial(self, evento):
-        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
-        self.historial.append(f"{timestamp} - {evento}")
-        self.fecha_ultima_actualizacion = datetime.now()
-
-    def establecer_deadline(self, fecha_deadline):
-        if isinstance(fecha_deadline, datetime):
-            self.fecha_deadline_propuesta = fecha_deadline
-            self.agregar_evento_historial(f"Deadline establecido: {fecha_deadline.strftime('%d/%m/%Y %H:%M')}")
-
-    def registrar_presentacion_cotizacion(self):
-        self.fecha_presentacion_cotizacion = datetime.now()
-        self.agregar_evento_historial("Cotización presentada al cliente")
-
-    def dias_restantes_deadline(self):
-        if self.fecha_deadline_propuesta and isinstance(self.fecha_deadline_propuesta, datetime):
-            diferencia = self.fecha_deadline_propuesta - datetime.now()
-            return diferencia.days
-        return None
-
-    def obtener_nivel_alerta_deadline(self):
-        dias_restantes = self.dias_restantes_deadline()
-        
-        if dias_restantes is None:
-            return "sin_deadline"
-        if dias_restantes < 0:
-            return "vencido"
-        elif dias_restantes == 0:
-            return "critico"
-        elif dias_restantes <= 1:
-            return "muy_urgente"
-        elif dias_restantes <= 3:
-            return "urgente"
-        elif dias_restantes <= 7:
-            return "por_vencer"
-        else:
-            return "disponible"
+def obtener_tipo_cambio_actual():
+    """Obtiene el tipo de cambio actual desde SUNAT"""
+    try:
+        url = "https://api.apis.net.pe/v1/tipo-cambio-sunat"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        return data['venta']  # Precio de venta SUNAT
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo obtener tipo de cambio SUNAT: {str(e)}")
+        return 3.80  # Valor por defecto
 
 # ==============================
 # Funciones de Base de Datos
 # ==============================
-DB_PATH = "proyectos.db"
-
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
-def inicializar_db():
+def verificar_y_crear_tabla():
+    """Verifica que la tabla existe y la crea si es necesario"""
     conn = get_connection()
     c = conn.cursor()
-    
+
+    # Verificar si la tabla existe
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='proyectos'")
+    if not c.fetchone():
+        # Crear tabla si no existe
+        c.execute("""
+            CREATE TABLE proyectos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo_proyecto TEXT NOT NULL UNIQUE,
+                nombre TEXT NOT NULL,
+                cliente TEXT NOT NULL,
+                descripcion TEXT,
+                valor_estimado REAL DEFAULT 0,
+                moneda TEXT DEFAULT 'PEN',
+                tipo_cambio_historico REAL DEFAULT 3.80,
+                asignado_a TEXT,
+                estado_actual TEXT DEFAULT 'OPORTUNIDAD',
+                fecha_creacion TEXT NOT NULL,
+                fecha_ultima_actualizacion TEXT NOT NULL,
+                fecha_deadline_propuesta TEXT,           -- NUEVA COLUMNA
+                fecha_presentacion_cotizacion TEXT,      -- NUEVA COLUMNA
+                historial TEXT DEFAULT '[]',
+                activo INTEGER DEFAULT 1
+            )
+        """)
+        conn.commit()
+        st.success("✅ Tabla de proyectos creada exitosamente!")
+
+    # Verificar columnas de moneda y fechas
     c.execute("PRAGMA table_info(proyectos)")
     columns = [column[1] for column in c.fetchall()]
-    
+
     if 'moneda' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN moneda TEXT DEFAULT 'PEN'")
+        conn.commit()
+
     if 'tipo_cambio_historico' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN tipo_cambio_historico REAL DEFAULT 3.80")
+        conn.commit()
+
     if 'fecha_deadline_propuesta' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN fecha_deadline_propuesta TEXT")
+        conn.commit()
+
     if 'fecha_presentacion_cotizacion' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN fecha_presentacion_cotizacion TEXT")
+        conn.commit()
+
     if 'activo' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN activo INTEGER DEFAULT 1")
-    
-    conn.commit()
+        conn.commit()
+
     conn.close()
 
-def cargar_proyectos_activos():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT * FROM proyectos WHERE activo = 1 OR activo IS NULL")
-    rows = c.fetchall()
-    conn.close()
+def cargar_proyectos():
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT * FROM proyectos WHERE activo = 1 OR activo IS NULL")
+        rows = c.fetchall()
+        conn.close()
 
-    proyectos = []
-    for row in rows:
-        if len(row) == 11:
-            (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
-             estado, fecha_creacion, fecha_update, historial) = row
-            moneda, tipo_cambio, fecha_deadline, fecha_cotizacion, activo = 'PEN', 3.80, None, None, 1
-        elif len(row) == 12:
-            (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
-             estado, fecha_creacion, fecha_update, historial, activo) = row
-            moneda, tipo_cambio, fecha_deadline, fecha_cotizacion = 'PEN', 3.80, None, None
-        elif len(row) == 14:
-            (id_, codigo, nombre, cliente, descripcion, valor, moneda,
-             tipo_cambio, asignado_a, estado, fecha_creacion, fecha_update, historial, activo) = row
-            fecha_deadline, fecha_cotizacion = None, None
+        proyectos = []
+        for row in rows:
+            try:
+                # Manejar dinámicamente según número de columnas
+                if len(row) == 11:  # Versión antigua sin moneda ni fechas
+                    (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
+                     estado, fecha_creacion, fecha_update, historial) = row
+                    moneda = 'PEN'
+                    tipo_cambio_historico = 3.80
+                    fecha_deadline = None
+                    fecha_cotizacion = None
+                    activo = 1
+                    
+                elif len(row) == 12:  # Con activo pero sin moneda ni fechas
+                    (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
+                     estado, fecha_creacion, fecha_update, historial, activo) = row
+                    moneda = 'PEN'
+                    tipo_cambio_historico = 3.80
+                    fecha_deadline = None
+                    fecha_cotizacion = None
+                    
+                elif len(row) == 13:  # Con moneda pero sin activo ni fechas
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
+                     fecha_update, historial) = row
+                    fecha_deadline = None
+                    fecha_cotizacion = None
+                    activo = 1
+                    
+                elif len(row) == 14:  # Con moneda y activo pero sin fechas
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
+                     fecha_update, historial, activo) = row
+                    estado = estado_actual
+                    fecha_deadline = None
+                    fecha_cotizacion = None
+                    
+                elif len(row) == 15:  # Con moneda, activo y una fecha
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
+                     fecha_update, fecha_deadline, historial, activo) = row
+                    estado = estado_actual
+                    fecha_cotizacion = None
+                    
+                elif len(row) == 16:  # CON TODAS LAS COLUMNAS (NUEVA ESTRUCTURA)
+                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
+                     tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
+                     fecha_update, fecha_deadline, fecha_cotizacion, historial, activo) = row
+                    estado = estado_actual
+                    
+                else:
+                    st.error(f"❌ Estructura de tabla inesperada: {len(row)} columnas")
+                    continue
+
+                # Solo procesar proyectos activos
+                if activo == 0:
+                    continue
+                    
+                p = Proyecto(
+                    nombre=nombre,
+                    cliente=cliente,
+                    valor_estimado=valor,
+                    descripcion=descripcion,
+                    asignado_a=asignado_a,
+                    moneda=moneda,
+                    tipo_cambio_historico=tipo_cambio_historico
+                )
+                p.id = id_
+                p.codigo_proyecto = codigo
+
+                # Verificar que el estado existe en el enum
+                try:
+                    p.estado_actual = Estado[estado]
+                except KeyError:
+                    st.warning(f"⚠️ Estado desconocido '{estado}' para proyecto {codigo}. Usando OPORTUNIDAD.")
+                    p.estado_actual = Estado.OPORTUNIDAD
+
+                # Convertir fechas de forma segura
+                try:
+                    if isinstance(fecha_creacion, str) and 'T' in fecha_creacion:
+                        p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
+                    else:
+                        p.fecha_creacion = datetime.now()
+                except (ValueError, TypeError):
+                    p.fecha_creacion = datetime.now()
+                    
+                try:
+                    if isinstance(fecha_update, str) and 'T' in fecha_update:
+                        p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
+                    else:
+                        p.fecha_ultima_actualizacion = datetime.now()
+                except (ValueError, TypeError):
+                    p.fecha_ultima_actualizacion = datetime.now()
+
+                # Convertir fechas de deadline y cotización
+                try:
+                    if fecha_deadline and isinstance(fecha_deadline, str) and 'T' in fecha_deadline:
+                        p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline)
+                    else:
+                        p.fecha_deadline_propuesta = None
+                except (ValueError, TypeError):
+                    p.fecha_deadline_propuesta = None
+                    
+                try:
+                    if fecha_cotizacion and isinstance(fecha_cotizacion, str) and 'T' in fecha_cotizacion:
+                        p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion)
+                    else:
+                        p.fecha_presentacion_cotizacion = None
+                except (ValueError, TypeError):
+                    p.fecha_presentacion_cotizacion = None
+
+                # Manejar historial JSON - FORMA ROBUSTA
+                if historial:
+                    try:
+                        # Si es una lista JSON (comienza con [)
+                        if isinstance(historial, str) and historial.strip().startswith('['):
+                            p.historial = json.loads(historial)
+                        else:
+                            # Si es un string simple, crear lista con ese string
+                            p.historial = [str(historial)]
+                    except (json.JSONDecodeError, AttributeError, TypeError) as e:
+                        # Si hay error, crear lista vacía
+                        p.historial = [f"Error cargando historial: {str(e)}"]
+                else:
+                    p.historial = []
+
+                proyectos.append(p)
+
+            except Exception as e:
+                st.error(f"❌ Error procesando proyecto {row[0] if row else 'desconocido'}: {str(e)}")
+                continue
+
+        return proyectos
+
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e):
+            st.error("❌ La tabla 'proyectos' no existe. Ejecuta el script crear_proyectos_db.py primero.")
+            st.stop()
         else:
-            (id_, codigo, nombre, cliente, descripcion, valor, moneda,
-             tipo_cambio, asignado_a, estado, fecha_creacion, fecha_update,
-             fecha_deadline, fecha_cotizacion, historial, activo) = row
+            st.error(f"❌ Error de base de datos: {str(e)}")
+            st.stop()
+    except Exception as e:
+        st.error(f"❌ Error inesperado cargando proyectos: {str(e)}")
+        st.stop()
 
-        p = Proyecto(nombre=nombre, cliente=cliente, valor_estimado=valor, 
-                    descripcion=descripcion, asignado_a=asignado_a)
-        p.id = id_
-        p.codigo_proyecto = codigo
-        p.estado_actual = Estado[estado]
-        p.fecha_creacion = datetime.fromisoformat(fecha_creacion)
-        p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update)
-        p.historial = json.loads(historial) if historial else []
-        p.moneda = moneda
-        p.tipo_cambio_historico = tipo_cambio
-        p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline) if fecha_deadline else None
-        p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion) if fecha_cotizacion else None
-        proyectos.append(p)
-    
-    return proyectos
+def actualizar_proyecto(proyecto: Proyecto):
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("""
+            UPDATE proyectos
+            SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, moneda=?,
+                tipo_cambio_historico=?, asignado_a=?, estado_actual=?, 
+                fecha_ultima_actualizacion=?, fecha_deadline_propuesta=?,
+                fecha_presentacion_cotizacion=?, historial=?
+            WHERE id=?
+        """, (
+            proyecto.nombre,
+            proyecto.cliente,
+            proyecto.descripcion,
+            proyecto.valor_estimado,
+            proyecto.moneda,
+            proyecto.tipo_cambio_historico,
+            proyecto.asignado_a,
+            proyecto.estado_actual.name,
+            proyecto.fecha_ultima_actualizacion.isoformat(),
+            proyecto.fecha_deadline_propuesta.isoformat() if proyecto.fecha_deadline_propuesta else None,
+            proyecto.fecha_presentacion_cotizacion.isoformat() if proyecto.fecha_presentacion_cotizacion else None,
+            json.dumps(proyecto.historial),
+            proyecto.id
+        ))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        st.error(f"❌ Error actualizando proyecto: {str(e)}")
 
-def convertir_moneda(valor, moneda_origen, moneda_destino, tipo_cambio=3.8):
-    if moneda_origen == moneda_destino:
-        return valor
-    if moneda_origen == 'PEN' and moneda_destino == 'USD':
-        return valor / tipo_cambio
-    elif moneda_origen == 'USD' and moneda_destino == 'PEN':
-        return valor * tipo_cambio
-    return valor
+# ==============================
+# Inicialización segura
+# ==============================
+try:
+    verificar_y_crear_tabla()
 
-def formatear_moneda(valor, moneda):
+    if "proyectos" not in st.session_state:
+        st.session_state.proyectos = cargar_proyectos()
+    if "editando" not in st.session_state:
+        st.session_state.editando = None
+    if "tipo_cambio_actual" not in st.session_state:
+        st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
+
+except Exception as e:
+    st.error("❌ Error crítico inicializando la aplicación:")
+    st.error(str(e))
+    st.info("💡 **Solución sugerida:**")
+    st.code("python crear_proyectos_db.py", language="bash")
+    st.stop()
+
+# ==============================
+# Flujo lineal de estados
+# ==============================
+flujo_estados = [
+    Estado.OPORTUNIDAD,
+    Estado.PREVENTA,
+    Estado.DELIVERY,
+    Estado.COBRANZA,
+    Estado.POSTVENTA
+]
+
+# ==============================
+# Funciones auxiliares
+# ==============================
+def _close_editor():
+    st.session_state.editando = None
+    st.session_state.proyectos = cargar_proyectos()
+    st.rerun()
+
+def convertir_a_pen(valor, moneda):
+    """Convierte un valor a PEN usando el tipo de cambio actual"""
     if moneda == 'PEN':
-        return f"S/ {valor:,.2f}"
+        return valor
     else:
-        return f"$ {valor:,.2f}"
+        return valor * st.session_state.tipo_cambio_actual
 
-def get_color_riesgo(dias_sin_actualizar):
-    if dias_sin_actualizar > 15:
-        return "#ff4b4b"
-    elif dias_sin_actualizar > 7:
-        return "#ffa64b"
+def obtener_nivel_alerta_deadline(fecha_deadline):
+    """Determina el nivel de alerta basado en la proximidad al deadline"""
+    if not fecha_deadline:
+        return "sin_deadline"
+    
+    dias_restantes = (fecha_deadline - datetime.now()).days
+    
+    if dias_restantes < 0:
+        return "vencido"
+    elif dias_restantes == 0:
+        return "critico"
+    elif dias_restantes <= 1:
+        return "muy_urgente"
+    elif dias_restantes <= 3:
+        return "urgente"
+    elif dias_restantes <= 7:
+        return "por_vencer"
     else:
-        return "#4caf50"
-
-def get_estado_riesgo(dias_sin_actualizar):
-    if dias_sin_actualizar > 15:
-        return "Crítico"
-    elif dias_sin_actualizar > 7:
-        return "En Riesgo"
-    else:
-        return "Normal"
+        return "disponible"
 
 def get_color_deadline(nivel_alerta):
+    """Obtiene el color según el nivel de alerta del deadline"""
     colores = {
         'vencido': '#d32f2f',
         'critico': '#f44336',
@@ -207,289 +354,382 @@ def get_color_deadline(nivel_alerta):
     return colores.get(nivel_alerta, '#9e9e9e')
 
 # ==============================
-# Inicialización
+# Estilos CSS
 # ==============================
-inicializar_db()
-proyectos = cargar_proyectos_activos()
-
-CLIENTES_DISPONIBLES = ['TechCorp Solutions', 'Banco Regional', 'RestauGroup SA', 
-                        'LogiStock Ltda', 'IndustrialPro', 'HumanTech SA', 
-                        'SalesMax Corp', 'Universidad Digital']
-EJECUTIVOS_DISPONIBLES = ['Ana García', 'Carlos López', 'María Rodríguez', 
-                          'Pedro Martínez', 'Sofia Herrera']
-MONEDAS_DISPONIBLES = ['PEN', 'USD']
-
-# ==============================
-# Sidebar Navigation
-# ==============================
-with st.sidebar:
-    st.title("🚀 Sales Pipeline")
-    
-    selected = option_menu(
-        menu_title="Menú Principal",
-        options=["Dashboard", "Oportunidades", "Preventa", "Delivery", "Cobranza", "Postventa", "Configuración"],
-        icons=["speedometer", "lightbulb", "clipboard-check", "gear", "cash-coin", "headset", "gear"],
-        default_index=0,
-        styles={
-            "container": {"padding": "5px", "background-color": "#f0f2f6"},
-            "icon": {"color": "orange", "font-size": "18px"},
-            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px"},
-            "nav-link-selected": {"background-color": "#2c3e50"},
-        }
-    )
-    
-    st.markdown("---")
-    st.subheader("📊 Estadísticas Rápidas")
-    
-    total_proyectos = len(proyectos)
-    st.metric("Total Proyectos", total_proyectos)
-    
-    valor_total = sum(p.valor_estimado for p in proyectos)
-    st.metric("Valor Total", f"${valor_total:,.0f}")
-    
-    st.markdown("---")
-    st.subheader("🎛️ Configuración")
-    
-    moneda_visualizacion = st.selectbox("Moneda Visualización", MONEDAS_DISPONIBLES)
-    
-    st.markdown("---")
-    st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.markdown("""
+<style>
+.card {
+  position: relative;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px 12px 8px 12px;
+  margin-bottom: 10px;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.07);
+  font-size: 14px;
+}
+.section-header {
+  color: white; padding: 14px; border-radius: 10px; text-align:center; margin-bottom: 14px;
+}
+.badge {
+  background: white; border-radius: 50%; width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+}
+.status-info {
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 16px 0;
+}
+.moneda-badge {
+  font-size: 10px; 
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+}
+.deadline-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-top: 4px;
+  display: inline-block;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ==============================
-# Página: Dashboard
+# Configuración visual
 # ==============================
-if selected == "Dashboard":
-    st.title("📊 Dashboard General")
-    
-    # KPIs principales
-    col1, col2, col3, col4 = st.columns(4)
-    
+colores_estados = {
+    Estado.OPORTUNIDAD: '#FF6B6B',
+    Estado.PREVENTA: '#4ECDC4',
+    Estado.DELIVERY: '#45B7D1',
+    Estado.COBRANZA: '#96CEB4',
+    Estado.POSTVENTA: '#FFEAA7'
+}
+
+iconos_estados = {
+    Estado.OPORTUNIDAD: '🎯',
+    Estado.PREVENTA: '📋',
+    Estado.DELIVERY: '🚀',
+    Estado.COBRANZA: '💰',
+    Estado.POSTVENTA: '🔧'
+}
+
+nombres_estados = {
+    Estado.OPORTUNIDAD: 'OPORTUNIDADES',
+    Estado.PREVENTA: 'PREVENTA',
+    Estado.DELIVERY: 'DELIVERY',
+    Estado.COBRANZA: 'COBRANZA',
+    Estado.POSTVENTA: 'POSTVENTA'
+}
+
+# ==============================
+# Cabecera
+# ==============================
+st.title("🏢 Workflow de Gestión de Proyectos")
+
+# Mostrar información del estado de la base de datos
+if st.session_state.proyectos:
+    # Calcular totales EN PEN
+    total_valor_pen = sum(convertir_a_pen(p.valor_estimado, p.moneda) for p in st.session_state.proyectos)
+    total_proyectos = len(st.session_state.proyectos)
+
+    st.markdown(f"""
+    <div class="status-info">
+        <strong>📊 Estado del Sistema:</strong> {total_proyectos} proyectos activos |
+        💰 Valor total: <strong>S/ {total_valor_pen:,.0f}</strong> |
+        💵 Tipo cambio: S/ {st.session_state.tipo_cambio_actual:.2f} por $1 |
+        📅 Última carga: {datetime.now().strftime('%H:%M:%S')}
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <div class="status-info">
+        <strong>ℹ️ Sistema iniciado:</strong> No hay proyectos en el sistema.
+        <a href="pages/1_Oportunidades.py">Crear nueva oportunidad →</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+st.markdown("## 📋 Vista General del Workflow")
+st.markdown("### Visualiza el flujo de proyectos entre estados")
+
+# ==============================
+# Función para tarjetas (ACTUALIZADA CON DEADLINES)
+# ==============================
+def crear_tarjeta_proyecto(proyecto, estado):
+    color = colores_estados.get(estado, "#ccc")
+    dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
+    extra_line = ""
+
+    if estado == Estado.OPORTUNIDAD:
+        color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
+        extra_line = f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>"
+
+    # Convertir valor a PEN para mostrar
+    valor_pen = convertir_a_pen(proyecto.valor_estimado, proyecto.moneda)
+    moneda_badge_color = "#4CAF50" if proyecto.moneda == 'PEN' else "#2196F3"
+    moneda_text = "S/ " if proyecto.moneda == 'PEN' else "$ "
+
+    # Información de deadlines
+    deadline_info = ""
+    if proyecto.fecha_deadline_propuesta:
+        nivel_alerta = obtener_nivel_alerta_deadline(proyecto.fecha_deadline_propuesta)
+        color_alerta = get_color_deadline(nivel_alerta)
+        dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
+        texto_estado = "Vencido" if dias_restantes < 0 else f"{dias_restantes}d restantes"
+        
+        deadline_info = f"""
+        <div class='deadline-badge' style='background:{color_alerta}; color:white;'>
+            ⏰ {proyecto.fecha_deadline_propuesta.strftime('%d/%m')} • {texto_estado}
+        </div>
+        """
+
+    # Información de cotización
+    cotizacion_info = ""
+    if proyecto.fecha_presentacion_cotizacion:
+        cotizacion_info = f"""
+        <div style='font-size:11px; color:#666; margin-top:2px;'>
+            📄 Cotizado: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m')}
+        </div>
+        """
+
+    # Crear contenedor para la tarjeta con botón
+    col1, col2 = st.columns([4, 1])
+
     with col1:
-        oportunidades = [p for p in proyectos if p.estado_actual == Estado.OPORTUNIDAD]
-        st.metric("🎯 Oportunidades", len(oportunidades))
-    
+        st.markdown(f"""
+        <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
+            <strong>{proyecto.nombre}</strong><br>
+            <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
+            <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
+            <span style="font-size:13px; font-weight:bold; color:{color};">
+                💰 {moneda_text}{proyecto.valor_estimado:,.0f}
+                <span class='moneda-badge' style='background:{moneda_badge_color}; color:white;'>
+                    {proyecto.moneda}
+                </span>
+            </span><br>
+            <span style="font-size:12px; color:#666;">
+                ≈ S/ {valor_pen:,.0f}
+            </span>
+            {deadline_info}
+            {cotizacion_info}
+            {extra_line}
+        </div>
+        """, unsafe_allow_html=True)
+
     with col2:
-        preventa = [p for p in proyectos if p.estado_actual == Estado.PREVENTA]
-        st.metric("📋 Preventa", len(preventa))
-    
-    with col3:
-        delivery = [p for p in proyectos if p.estado_actual == Estado.DELIVERY]
-        st.metric("⚡ Delivery", len(delivery))
-    
-    with col4:
-        cobranza = [p for p in proyectos if p.estado_actual == Estado.COBANZA]
-        st.metric("💰 Cobranza", len(cobranza))
-    
-    st.markdown("---")
-    
-    # Gráfico de distribución por estado
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📈 Distribución por Estado")
-        estado_counts = {estado.value: 0 for estado in Estado}
-        for p in proyectos:
-            estado_counts[p.estado_actual.value] += 1
-        
-        fig_estados = px.pie(
-            values=list(estado_counts.values()),
-            names=list(estado_counts.keys()),
-            color=list(estado_counts.keys()),
-            color_discrete_sequence=px.colors.qualitative.Set3
-        )
-        st.plotly_chart(fig_estados, use_container_width=True)
-    
-    with col2:
-        st.subheader("💰 Valor por Estado")
-        estado_valores = {estado.value: 0 for estado in Estado}
-        for p in proyectos:
-            valor_convertido = convertir_moneda(
-                p.valor_estimado, 
-                getattr(p, 'moneda', 'PEN'), 
-                moneda_visualizacion,
-                getattr(p, 'tipo_cambio_historico', 3.80)
-            )
-            estado_valores[p.estado_actual.value] += valor_convertido
-        
-        fig_valores = px.bar(
-            x=list(estado_valores.keys()),
-            y=list(estado_valores.values()),
-            labels={'x': 'Estado', 'y': f'Valor ({moneda_visualizacion})'},
-            color=list(estado_valores.keys()),
-            color_discrete_sequence=px.colors.qualitative.Set3
-        )
-        st.plotly_chart(fig_valores, use_container_width=True)
-    
-    # Deadlines críticos
-    st.markdown("---")
-    st.subheader("⏰ Deadlines Críticos")
-    
-    proyectos_con_deadline = [p for p in proyectos if p.fecha_deadline_propuesta]
-    proyectos_con_deadline.sort(key=lambda x: x.fecha_deadline_propuesta if x.fecha_deadline_propuesta else datetime.max)
-    
-    if proyectos_con_deadline:
-        deadline_data = []
-        for p in proyectos_con_deadline[:5]:  # Top 5 más críticos
-            dias_restantes = p.dias_restantes_deadline()
-            nivel_alerta = p.obtener_nivel_alerta_deadline()
-            
-            deadline_data.append({
-                "Proyecto": p.nombre,
-                "Cliente": p.cliente,
-                "Deadline": p.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M'),
-                "Días Restantes": dias_restantes if dias_restantes is not None else "N/A",
-                "Estado": nivel_alerta.capitalize(),
-                "Color": get_color_deadline(nivel_alerta)
-            })
-        
-        df_deadlines = pd.DataFrame(deadline_data)
-        
-        # Aplicar colores a la tabla
-        def color_row(row):
-            return [f'background-color: {row["Color"]}; color: white; font-weight: bold'] * len(row)
-        
-        st.dataframe(
-            df_deadlines.style.apply(color_row, axis=1),
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.info("No hay proyectos con deadlines establecidos.")
-
-# ==============================
-# Páginas de Estados
-# ==============================
-elif selected == "Oportunidades":
-    st.switch_page("pages/1_Oportunidades.py")
-
-elif selected == "Preventa":
-    st.title("📋 Pipeline de Preventa")
-    proyectos_preventa = [p for p in proyectos if p.estado_actual == Estado.PREVENTA]
-    
-    if not proyectos_preventa:
-        st.info("No hay proyectos en etapa de Preventa.")
-    else:
-        st.subheader(f"Proyectos en Preventa ({len(proyectos_preventa)})")
-        
-        for proyecto in proyectos_preventa:
-            with st.expander(f"{proyecto.codigo_proyecto} - {proyecto.nombre}"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write(f"**Cliente:** {proyecto.cliente}")
-                    st.write(f"**Valor:** {formatear_moneda(proyecto.valor_estimado, proyecto.moneda)}")
-                    st.write(f"**Asignado a:** {proyecto.asignado_a}")
-                
-                with col2:
-                    if proyecto.fecha_deadline_propuesta:
-                        dias_restantes = proyecto.dias_restantes_deadline()
-                        nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
-                        st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M')}")
-                        st.write(f"**Días restantes:** {dias_restantes}")
-                        st.markdown(f"<span style='color: {get_color_deadline(nivel_alerta)}; font-weight: bold;'>{nivel_alerta.capitalize()}</span>", unsafe_allow_html=True)
-                
-                st.write(f"**Descripción:** {proyecto.descripcion}")
-
-elif selected in ["Delivery", "Cobranza", "Postventa"]:
-    estado_map = {
-        "Delivery": Estado.DELIVERY,
-        "Cobranza": Estado.COBRANZA,
-        "Postventa": Estado.POSTVENTA
-    }
-    
-    estado_actual = estado_map[selected]
-    st.title(f"📊 {selected}")
-    
-    proyectos_estado = [p for p in proyectos if p.estado_actual == estado_actual]
-    
-    if not proyectos_estado:
-        st.info(f"No hay proyectos en etapa de {selected}.")
-    else:
-        st.subheader(f"Proyectos en {selected} ({len(proyectos_estado)})")
-        
-        for proyecto in proyectos_estado:
-            with st.expander(f"{proyecto.codigo_proyecto} - {proyecto.nombre}"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write(f"**Cliente:** {proyecto.cliente}")
-                    st.write(f"**Valor:** {formatear_moneda(proyecto.valor_estimado, proyecto.moneda)}")
-                    st.write(f"**Asignado a:** {proyecto.asignado_a}")
-                
-                with col2:
-                    st.write(f"**Fecha creación:** {proyecto.fecha_creacion.strftime('%d/%m/%Y')}")
-                    st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y')}")
-                
-                st.write(f"**Descripción:** {proyecto.descripcion}")
-
-# ==============================
-# Página: Configuración
-# ==============================
-elif selected == "Configuración":
-    st.title("⚙️ Configuración")
-    
-    st.subheader("Base de Datos")
-    if st.button("🔄 Reinicializar Base de Datos", type="secondary"):
-        try:
-            import crear_proyectos_db2
-            crear_proyectos_db2.crear_proyectos_db()
-            st.success("Base de datos reinicializada correctamente")
+        if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar proyecto"):
+            st.session_state.editando = proyecto.id
             st.rerun()
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-    
-    st.subheader("Estadísticas de la BD")
-    conn = get_connection()
-    
-    # Contar proyectos por estado
-    query_estados = """
-    SELECT estado_actual, COUNT(*) 
-    FROM proyectos 
-    WHERE activo = 1 
-    GROUP BY estado_actual
-    """
-    df_estados = pd.read_sql_query(query_estados, conn)
-    st.write("**Proyectos por estado:**")
-    st.dataframe(df_estados, hide_index=True)
-    
-    # Proyectos con deadlines
-    query_deadlines = """
-    SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN fecha_deadline_propuesta IS NOT NULL THEN 1 ELSE 0 END) as con_deadline,
-        SUM(CASE WHEN fecha_deadline_propuesta IS NULL THEN 1 ELSE 0 END) as sin_deadline,
-        SUM(CASE WHEN fecha_deadline_propuesta < datetime('now') THEN 1 ELSE 0 END) as deadlines_vencidos
-    FROM proyectos 
-    WHERE activo = 1
-    """
-    df_deadlines = pd.read_sql_query(query_deadlines, conn)
-    st.write("**Estadísticas de deadlines:**")
-    st.dataframe(df_deadlines, hide_index=True)
-    
-    conn.close()
+
+# ==============================
+# Construcción del tablero Kanban
+# ==============================
+if st.session_state.proyectos:
+    col1, col2, col3, col4, col5 = st.columns(5)
+    cols_map = {
+        Estado.OPORTUNIDAD: col1,
+        Estado.PREVENTA: col2,
+        Estado.DELIVERY: col3,
+        Estado.COBRANZA: col4,
+        Estado.POSTVENTA: col5
+    }
+
+    for estado, col in cols_map.items():
+        color = colores_estados[estado]
+        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado]
+
+        with col:
+            st.markdown(
+                f"<div class='section-header' style='background:{color};'>"
+                f"<h3 style='margin:0;'>{iconos_estados[estado]} {nombres_estados[estado]}</h3>"
+                f"<div class='badge' style='color:{color};'>{len(proyectos_estado)}</div>"
+                f"</div>", unsafe_allow_html=True
+            )
+
+            if not proyectos_estado:
+                st.markdown(f"""
+                <div style='text-align: center; padding: 20px; color: #666; font-style: italic;'>
+                    Sin proyectos en {estado.value}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                for proyecto in proyectos_estado:
+                    with st.container():
+                        crear_tarjeta_proyecto(proyecto, estado)
+
+            if estado == Estado.OPORTUNIDAD:
+                st.page_link("pages/1_Oportunidades.py", label="📊 Gestionar Oportunidades")
+            else:
+                st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
+
+else:
+    st.info("🚀 ¡Bienvenido! No hay proyectos en el sistema aún.")
+    st.markdown("### Para comenzar:")
+    st.markdown("1. 📊 Ve a **Gestionar Oportunidades**")
+    st.markdown("2. ➕ Crea tu primera oportunidad")
+    st.markdown("3. 🔄 Observa cómo fluye por los estados")
+
+    st.page_link("pages/1_Oportunidades.py", label="🚀 Crear Primera Oportunidad")
+
+# ==============================
+# Sidebar de edición con flujo lineal (ACTUALIZADO CON FECHAS)
+# ==============================
+if st.session_state.editando:
+    proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
+
+    if proyecto:
+        with st.sidebar:
+            st.header(f"✏️ Editar Proyecto #{proyecto.id}")
+            st.caption(f"Código: **{proyecto.codigo_proyecto}** • Estado actual: **{proyecto.estado_actual.value}**")
+
+            with st.form(f"form_edit_{proyecto.id}", clear_on_submit=False):
+                nuevo_nombre = st.text_input("Nombre", proyecto.nombre)
+                nuevo_cliente = st.text_input("Cliente", proyecto.cliente)
+                nueva_descripcion = st.text_area("Descripción", proyecto.descripcion)
+                
+                col_moneda, col_valor = st.columns(2)
+                with col_moneda:
+                    nueva_moneda = st.selectbox("Moneda", ["PEN", "USD"], index=0 if proyecto.moneda == "PEN" else 1)
+                with col_valor:
+                    nuevo_valor = st.number_input("Valor estimado", min_value=0, step=1000, value=int(proyecto.valor_estimado))
+                
+                nuevo_asignado = st.text_input("Asignado a", proyecto.asignado_a)
+
+                # NUEVOS CAMPOS: Fechas de deadline y cotización
+                col_fecha1, col_fecha2 = st.columns(2)
+                with col_fecha1:
+                    nueva_fecha_deadline = st.date_input(
+                        "Fecha Deadline Propuesta",
+                        value=proyecto.fecha_deadline_propuesta.date() if proyecto.fecha_deadline_propuesta else None,
+                        format="DD/MM/YYYY"
+                    )
+                with col_fecha2:
+                    nueva_fecha_cotizacion = st.date_input(
+                        "Fecha Presentación Cotización",
+                        value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
+                        format="DD/MM/YYYY"
+                    )
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    guardar = st.form_submit_button("💾 Guardar")
+                with col2:
+                    cancelar = st.form_submit_button("❌ Cancelar")
+
+                if guardar:
+                    try:
+                        proyecto.nombre = nuevo_nombre
+                        proyecto.cliente = nuevo_cliente
+                        proyecto.descripcion = nueva_descripcion
+                        proyecto.valor_estimado = nuevo_valor
+                        proyecto.moneda = nueva_moneda
+                        proyecto.asignado_a = nuevo_asignado
+                        
+                        # Actualizar fechas
+                        if nueva_fecha_deadline:
+                            proyecto.fecha_deadline_propuesta = datetime.combine(nueva_fecha_deadline, datetime.min.time())
+                        else:
+                            proyecto.fecha_deadline_propuesta = None
+                            
+                        if nueva_fecha_cotizacion:
+                            proyecto.fecha_presentacion_cotizacion = datetime.combine(nueva_fecha_cotizacion, datetime.min.time())
+                        else:
+                            proyecto.fecha_presentacion_cotizacion = None
+                        
+                        proyecto.fecha_ultima_actualizacion = datetime.now()
+                        proyecto.historial.append(f"Editado el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+                        actualizar_proyecto(proyecto)
+                        st.success("✅ Guardado!")
+                        _close_editor()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+
+                if cancelar:
+                    _close_editor()
+
+            st.markdown("---")
+            st.subheader("🔄 Acciones de Flujo")
+
+            idx = flujo_estados.index(proyecto.estado_actual)
+            anterior = flujo_estados[idx-1] if idx > 0 else None
+            siguiente = flujo_estados[idx+1] if idx < len(flujo_estados)-1 else None
+
+            if anterior and st.button(f"⬅️ Retroceder a {anterior.value}"):
+                try:
+                    proyecto.estado_actual = anterior
+                    proyecto.fecha_ultima_actualizacion = datetime.now()
+                    proyecto.historial.append(f"Retrocedido a {anterior.value} el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+                    actualizar_proyecto(proyecto)
+                    st.success(f"✅ Movido a {anterior.value}")
+                    _close_editor()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+            if siguiente and st.button(f"➡️ Avanzar a {siguiente.value}"):
+                try:
+                    proyecto.estado_actual = siguiente
+                    proyecto.fecha_ultima_actualizacion = datetime.now()
+                    proyecto.historial.append(f"Avanzado a {siguiente.value} el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+                    actualizar_proyecto(proyecto)
+                    st.success(f"✅ Movido a {siguiente.value}")
+                    _close_editor()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+            st.markdown("---")
+            st.subheader("📜 Historial")
+            historial_items = getattr(proyecto, "historial", [])[-5:]  # Últimos 5
+            for h in historial_items:
+                st.write(f"• {h}")
+    else:
+        st.session_state.editando = None
+        st.rerun()
+
+# ==============================
+# Resumen general
+# ==============================
+if st.session_state.proyectos:
+    st.markdown("---")
+    st.markdown("## 📊 Resumen General por Estado")
+
+    resumen_cols = st.columns(5)
+    for i, estado in enumerate(flujo_estados):
+        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado]
+        color = colores_estados[estado]
+        
+        # Calcular total EN PEN
+        total_valor_pen = sum(convertir_a_pen(p.valor_estimado, p.moneda) for p in proyectos_estado)
+
+        with resumen_cols[i]:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 15px; background-color: {color}20; border-radius: 10px; border: 2px solid {color};'>
+                <div style='font-size: 24px;'>{iconos_estados[estado]}</div>
+                <div style='font-weight: bold; color: {color};'>{nombres_estados[estado]}</div>
+                <div style='font-size: 20px; font-weight: bold;'>{len(proyectos_estado)}</div>
+                <div style='font-size: 12px;'>proyectos</div>
+                <div style='font-size: 16px; font-weight: bold; color: {color};'>S/ {total_valor_pen:,.0f}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # ==============================
 # Footer
 # ==============================
 st.markdown("---")
-footer_col1, footer_col2, footer_col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
-with footer_col1:
-    st.markdown("**📞 Contacto**")
-    st.markdown("✉️ info@empresa.com")
-    st.markdown("📱 +51 123 456 789")
+with col1:
+    st.markdown(f"*📅 Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}*")
 
-with footer_col2:
-    st.markdown("**🚀 Recursos**")
-    st.markdown("[📚 Documentación](#)")
-    st.markdown("[🎓 Tutoriales](#)")
-    st.markdown("[💬 Soporte](#)")
+with col2:
+    st.markdown("*💡 Haz clic en ✏️ de cada tarjeta para editar*")
 
-with footer_col3:
-    st.markdown("**📊 Sistema**")
-    st.markdown(f"Proyectos activos: {len(proyectos)}")
-    st.markdown(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    st.markdown("v2.0 - Sistema de Doble Moneda")
-
-st.markdown("---")
-st.caption("© 2024 Sistema de Gestión de Proyectos - Todos los derechos reservados")
+# Botón de refresh de datos
+if st.button("🔄 Actualizar Datos", help="Recargar datos desde la base de datos"):
+    st.session_state.proyectos = cargar_proyectos()
+    st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
+    st.success("✅ Datos actualizados!")
+    st.rerun()
