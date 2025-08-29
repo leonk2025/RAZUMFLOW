@@ -251,19 +251,20 @@ def formatear_moneda(valor, moneda):
 # ==============================
 # Funciones para deadlines y criticidad
 # ==============================
+
 def obtener_estilo_deadline(nivel_alerta):
     """Devuelve estilo CSS según el nivel de alerta del deadline"""
     estilos = {
-        'vencido': {'color': '#dc2626', 'icono': '☠️', 'fondo': '#fef2f2'},
-        'critico': {'color': '#ea580c', 'icono': '🔥', 'fondo': '#fff7ed'},
+        'vencido': {'color': '#666666', 'icono': '☠️', 'fondo': '#F5F5F5'},
+        'critico': {'color': '#dc2626', 'icono': '🔥', 'fondo': '#fef2f2'},
         'muy_urgente': {'color': '#ea580c', 'icono': '⏰', 'fondo': '#fff7ed'},
-        'urgente': {'color': '#ca8a04', 'icono': '⏳', 'fondo': '#fefce8'},
-        'por_vencer': {'color': '#16a34a', 'icono': '📅', 'fondo': '#f0fdf4'},
+        'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
+        'por_vencer': {'color': '#ca8a04', 'icono': '📅', 'fondo': '#fefce8'},
         'disponible': {'color': '#16a34a', 'icono': '✅', 'fondo': '#f0fdf4'},
-        'sin_deadline': {'color': '#6b7280', 'icono': '📌', 'fondo': '#f9fafb'}
+        'sin_deadline': {'color': '#16a34a', 'icono': '📌', 'fondo': '#f0fdf4'}
     }
     return estilos.get(nivel_alerta, estilos['sin_deadline'])
-
+    
 def calcular_criticidad_deadline(proyecto):
     """Calcula la criticidad basada en el deadline"""
     if not proyecto.fecha_deadline_propuesta:
