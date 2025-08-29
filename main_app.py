@@ -326,7 +326,7 @@ def obtener_estilo_deadline(nivel_alerta):
         'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
         'por_vencer': {'color': '#ca8a04', 'icono': '📅', 'fondo': '#fefce8'},
         'disponible': {'color': '#16a34a', 'icono': '✅', 'fondo': '#f0fdf4'},
-        'sin_deadline': {'color': '#6b7280', 'icono': '📌', 'fondo': '#f0fdf4'}
+        'sin_deadline': {'color': '#16a34a', 'icono': '📌', 'fondo': '#f0fdf4'}
     }
     return estilos.get(nivel_alerta, estilos['sin_deadline'])
 
