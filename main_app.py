@@ -55,8 +55,8 @@ def verificar_y_crear_tabla():
                 estado_actual TEXT DEFAULT 'OPORTUNIDAD',
                 fecha_creacion TEXT NOT NULL,
                 fecha_ultima_actualizacion TEXT NOT NULL,
-                fecha_deadline_propuesta TEXT,           -- NUEVA COLUMNA
-                fecha_presentacion_cotizacion TEXT,      -- NUEVA COLUMNA
+                fecha_presentacion_cotizacion TEXT,
+                fecha_deadline_propuesta TEXT,
                 historial TEXT DEFAULT '[]',
                 activo INTEGER DEFAULT 1
             )
@@ -64,28 +64,28 @@ def verificar_y_crear_tabla():
         conn.commit()
         st.success("✅ Tabla de proyectos creada exitosamente!")
 
-    # Verificar columnas de moneda y fechas
+    # Verificar columnas adicionales
     c.execute("PRAGMA table_info(proyectos)")
     columns = [column[1] for column in c.fetchall()]
 
     if 'moneda' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN moneda TEXT DEFAULT 'PEN'")
+        c.execute("ALTER TABLE proyectos ADD COLUMN moneta TEXT DEFAULT 'PEN'")
         conn.commit()
 
     if 'tipo_cambio_historico' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN tipo_cambio_historico REAL DEFAULT 3.80")
         conn.commit()
 
-    if 'fecha_deadline_propuesta' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN fecha_deadline_propuesta TEXT")
+    if 'activo' not in columns:
+        c.execute("ALTER TABLE proyectos ADD COLUMN activo INTEGER DEFAULT 1")
         conn.commit()
 
     if 'fecha_presentacion_cotizacion' not in columns:
         c.execute("ALTER TABLE proyectos ADD COLUMN fecha_presentacion_cotizacion TEXT")
         conn.commit()
 
-    if 'activo' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN activo INTEGER DEFAULT 1")
+    if 'fecha_deadline_propuesta' not in columns:
+        c.execute("ALTER TABLE proyectos ADD COLUMN fecha_deadline_propuesta TEXT")
         conn.commit()
 
     conn.close()
@@ -102,50 +102,43 @@ def cargar_proyectos():
         for row in rows:
             try:
                 # Manejar dinámicamente según número de columnas
-                if len(row) == 11:  # Versión antigua sin moneda ni fechas
+                if len(row) == 11:  # Versión antigua sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
                      estado, fecha_creacion, fecha_update, historial) = row
                     moneda = 'PEN'
                     tipo_cambio_historico = 3.80
-                    fecha_deadline = None
-                    fecha_cotizacion = None
                     activo = 1
+                    fecha_presentacion_cotizacion = None
+                    fecha_deadline_propuesta = None
                     
-                elif len(row) == 12:  # Con activo pero sin moneda ni fechas
+                elif len(row) == 12:  # Con activo pero sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
                      estado, fecha_creacion, fecha_update, historial, activo) = row
                     moneda = 'PEN'
                     tipo_cambio_historico = 3.80
-                    fecha_deadline = None
-                    fecha_cotizacion = None
+                    fecha_presentacion_cotizacion = None
+                    fecha_deadline_propuesta = None
                     
-                elif len(row) == 13:  # Con moneda pero sin activo ni fechas
+                elif len(row) == 13:  # Con moneda pero sin activo
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
                      fecha_update, historial) = row
-                    fecha_deadline = None
-                    fecha_cotizacion = None
                     activo = 1
+                    fecha_presentacion_cotizacion = None
+                    fecha_deadline_propuesta = None
                     
-                elif len(row) == 14:  # Con moneda y activo pero sin fechas
+                elif len(row) == 14:  # Sin fechas adicionales
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
                      fecha_update, historial, activo) = row
                     estado = estado_actual
-                    fecha_deadline = None
-                    fecha_cotizacion = None
+                    fecha_presentacion_cotizacion = None
+                    fecha_deadline_propuesta = None
                     
-                elif len(row) == 15:  # Con moneda, activo y una fecha
+                elif len(row) == 16:  # CON TODAS LAS COLUMNAS
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
-                     fecha_update, fecha_deadline, historial, activo) = row
-                    estado = estado_actual
-                    fecha_cotizacion = None
-                    
-                elif len(row) == 16:  # CON TODAS LAS COLUMNAS (NUEVA ESTRUCTURA)
-                    (id_, codigo, nombre, cliente, descripcion, valor, moneda,
-                     tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
-                     fecha_update, fecha_deadline, fecha_cotizacion, historial, activo) = row
+                     fecha_update, fecha_presentacion_cotizacion, fecha_deadline_propuesta, historial, activo) = row
                     estado = estado_actual
                     
                 else:
@@ -161,12 +154,12 @@ def cargar_proyectos():
                     cliente=cliente,
                     valor_estimado=valor,
                     descripcion=descripcion,
-                    asignado_a=asignado_a
+                    asignado_a=asignado_a,
+                    moneda=moneda,
+                    tipo_cambio_historico=tipo_cambio_historico
                 )
-                p.moneda = moneda
-                p.tipo_cambio_historico = tipo_cambio_historico
-                p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline) if fecha_deadline else None
-                p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion) if fecha_cotizacion else None
+                p.id = id_
+                p.codigo_proyecto = codigo
 
                 # Verificar que el estado existe en el enum
                 try:
@@ -192,22 +185,22 @@ def cargar_proyectos():
                 except (ValueError, TypeError):
                     p.fecha_ultima_actualizacion = datetime.now()
 
-                # Convertir fechas de deadline y cotización
+                # Manejar fechas de cotización y deadline
                 try:
-                    if fecha_deadline and isinstance(fecha_deadline, str) and 'T' in fecha_deadline:
-                        p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline)
-                    else:
-                        p.fecha_deadline_propuesta = None
-                except (ValueError, TypeError):
-                    p.fecha_deadline_propuesta = None
-                    
-                try:
-                    if fecha_cotizacion and isinstance(fecha_cotizacion, str) and 'T' in fecha_cotizacion:
-                        p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion)
+                    if fecha_presentacion_cotizacion and isinstance(fecha_presentacion_cotizacion, str) and 'T' in fecha_presentacion_cotizacion:
+                        p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_presentacion_cotizacion)
                     else:
                         p.fecha_presentacion_cotizacion = None
                 except (ValueError, TypeError):
                     p.fecha_presentacion_cotizacion = None
+
+                try:
+                    if fecha_deadline_propuesta and isinstance(fecha_deadline_propuesta, str) and 'T' in fecha_deadline_propuesta:
+                        p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline_propuesta)
+                    else:
+                        p.fecha_deadline_propuesta = None
+                except (ValueError, TypeError):
+                    p.fecha_deadline_propuesta = None
 
                 # Manejar historial JSON - FORMA ROBUSTA
                 if historial:
@@ -251,8 +244,8 @@ def actualizar_proyecto(proyecto: Proyecto):
             UPDATE proyectos
             SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, moneda=?,
                 tipo_cambio_historico=?, asignado_a=?, estado_actual=?, 
-                fecha_ultima_actualizacion=?, fecha_deadline_propuesta=?,
-                fecha_presentacion_cotizacion=?, historial=?
+                fecha_ultima_actualizacion=?, fecha_presentacion_cotizacion=?,
+                fecha_deadline_propuesta=?, historial=?
             WHERE id=?
         """, (
             proyecto.nombre,
@@ -264,8 +257,8 @@ def actualizar_proyecto(proyecto: Proyecto):
             proyecto.asignado_a,
             proyecto.estado_actual.name,
             proyecto.fecha_ultima_actualizacion.isoformat(),
-            proyecto.fecha_deadline_propuesta.isoformat() if proyecto.fecha_deadline_propuesta else None,
             proyecto.fecha_presentacion_cotizacion.isoformat() if proyecto.fecha_presentacion_cotizacion else None,
+            proyecto.fecha_deadline_propuesta.isoformat() if proyecto.fecha_deadline_propuesta else None,
             json.dumps(proyecto.historial),
             proyecto.id
         ))
@@ -320,38 +313,18 @@ def convertir_a_pen(valor, moneda):
     else:
         return valor * st.session_state.tipo_cambio_actual
 
-def obtener_nivel_alerta_deadline(fecha_deadline):
-    """Determina el nivel de alerta basado en la proximidad al deadline"""
-    if not fecha_deadline:
-        return "sin_deadline"
-    
-    dias_restantes = (fecha_deadline - datetime.now()).days
-    
-    if dias_restantes < 0:
-        return "vencido"
-    elif dias_restantes == 0:
-        return "critico"
-    elif dias_restantes <= 1:
-        return "muy_urgente"
-    elif dias_restantes <= 3:
-        return "urgente"
-    elif dias_restantes <= 7:
-        return "por_vencer"
-    else:
-        return "disponible"
-
-def get_color_deadline(nivel_alerta):
-    """Obtiene el color según el nivel de alerta del deadline"""
-    colores = {
-        'vencido': '#d32f2f',
-        'critico': '#f44336',
-        'muy_urgente': '#ff9800',
-        'urgente': '#ffc107',
-        'por_vencer': '#4caf50',
-        'disponible': '#2196f3',
-        'sin_deadline': '#9e9e9e'
+def obtener_estilo_deadline(nivel_alerta):
+    """Devuelve estilo CSS según el nivel de alerta del deadline"""
+    estilos = {
+        'vencido': {'color': '#dc2626', 'icono': '⚡', 'fondo': '#fef2f2'},
+        'critico': {'color': '#dc2626', 'icono': '🔥', 'fondo': '#fef2f2'},
+        'muy_urgente': {'color': '#ea580c', 'icono': '⏰', 'fondo': '#fff7ed'},
+        'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
+        'por_vencer': {'color': '#ca8a04', 'icono': '📅', 'fondo': '#fefce8'},
+        'disponible': {'color': '#16a34a', 'icono': '✅', 'fondo': '#f0fdf4'},
+        'sin_deadline': {'color': '#6b7280', 'icono': '📌', 'fondo': '#f9fafb'}
     }
-    return colores.get(nivel_alerta, '#9e9e9e')
+    return estilos.get(nivel_alerta, estilos['sin_deadline'])
 
 # ==============================
 # Estilos CSS
@@ -389,9 +362,9 @@ st.markdown("""
   margin-left: 4px;
 }
 .deadline-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 8px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
   margin-top: 4px;
   display: inline-block;
 }
@@ -457,44 +430,35 @@ st.markdown("## 📋 Vista General del Workflow")
 st.markdown("### Visualiza el flujo de proyectos entre estados")
 
 # ==============================
-# Función para tarjetas (ACTUALIZADA CON DEADLINES)
+# Función para tarjetas
 # ==============================
 def crear_tarjeta_proyecto(proyecto, estado):
     color = colores_estados.get(estado, "#ccc")
     dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
-    extra_line = ""
+    extra_lines = []
 
     if estado == Estado.OPORTUNIDAD:
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
-        extra_line = f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>"
+        extra_lines.append(f"<span style='font-size:12px; color:{color_estado};'>⏰ {dias_sin} días sin actualizar</span>")
+
+    # Mostrar deadline en OPORTUNIDAD y PREVENTA
+    if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
+        nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
+        estilo = obtener_estilo_deadline(nivel_alerta)
+        dias_restantes = proyecto.dias_restantes_deadline()
+        
+        if dias_restantes is not None:
+            texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
+            extra_lines.append(
+                f"<div class='deadline-badge' style='background:{estilo['fondo']}; color:{estilo['color']}; border:1px solid {estilo['color']}20;'>"
+                f"{estilo['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')} "
+                f"({texto_dias})</div>"
+            )
 
     # Convertir valor a PEN para mostrar
     valor_pen = convertir_a_pen(proyecto.valor_estimado, proyecto.moneda)
     moneda_badge_color = "#4CAF50" if proyecto.moneda == 'PEN' else "#2196F3"
     moneda_text = "S/ " if proyecto.moneda == 'PEN' else "$ "
-
-    # Información de deadlines
-    deadline_info = ""
-    if proyecto.fecha_deadline_propuesta:
-        nivel_alerta = obtener_nivel_alerta_deadline(proyecto.fecha_deadline_propuesta)
-        color_alerta = get_color_deadline(nivel_alerta)
-        dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
-        texto_estado = "Vencido" if dias_restantes < 0 else f"{dias_restantes}d restantes"
-        
-        deadline_info = f"""
-        <div class='deadline-badge' style='background:{color_alerta}; color:white;'>
-            ⏰ {proyecto.fecha_deadline_propuesta.strftime('%d/%m')} • {texto_estado}
-        </div>
-        """
-
-    # Información de cotización
-    cotizacion_info = ""
-    if proyecto.fecha_presentacion_cotizacion:
-        cotizacion_info = f"""
-        <div style='font-size:11px; color:#666; margin-top:2px;'>
-            📄 Cotizado: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m')}
-        </div>
-        """
 
     # Crear contenedor para la tarjeta con botón
     col1, col2 = st.columns([4, 1])
@@ -513,10 +477,8 @@ def crear_tarjeta_proyecto(proyecto, estado):
             </span><br>
             <span style="font-size:12px; color:#666;">
                 ≈ S/ {valor_pen:,.0f}
-            </span>
-            {deadline_info}
-            {cotizacion_info}
-            {extra_line}
+            </span><br>
+            {'<br>'.join(extra_lines)}
         </div>
         """, unsafe_allow_html=True)
 
@@ -576,7 +538,7 @@ else:
     st.page_link("pages/1_Oportunidades.py", label="🚀 Crear Primera Oportunidad")
 
 # ==============================
-# Sidebar de edición con flujo lineal (ACTUALIZADO CON FECHAS)
+# Sidebar de edición con flujo lineal
 # ==============================
 if st.session_state.editando:
     proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
@@ -599,18 +561,18 @@ if st.session_state.editando:
                 
                 nuevo_asignado = st.text_input("Asignado a", proyecto.asignado_a)
 
-                # NUEVOS CAMPOS: Fechas de deadline y cotización
+                # Fechas adicionales
                 col_fecha1, col_fecha2 = st.columns(2)
                 with col_fecha1:
-                    nueva_fecha_deadline = st.date_input(
-                        "Fecha Deadline Propuesta",
-                        value=proyecto.fecha_deadline_propuesta.date() if proyecto.fecha_deadline_propuesta else None,
+                    nueva_fecha_cotizacion = st.date_input(
+                        "Fecha presentación cotización",
+                        value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
                         format="DD/MM/YYYY"
                     )
                 with col_fecha2:
-                    nueva_fecha_cotizacion = st.date_input(
-                        "Fecha Presentación Cotización",
-                        value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
+                    nueva_fecha_deadline = st.date_input(
+                        "Fecha deadline propuesta",
+                        value=proyecto.fecha_deadline_propuesta.date() if proyecto.fecha_deadline_propuesta else None,
                         format="DD/MM/YYYY"
                     )
 
@@ -630,15 +592,10 @@ if st.session_state.editando:
                         proyecto.asignado_a = nuevo_asignado
                         
                         # Actualizar fechas
-                        if nueva_fecha_deadline:
-                            proyecto.fecha_deadline_propuesta = datetime.combine(nueva_fecha_deadline, datetime.min.time())
-                        else:
-                            proyecto.fecha_deadline_propuesta = None
-                            
                         if nueva_fecha_cotizacion:
                             proyecto.fecha_presentacion_cotizacion = datetime.combine(nueva_fecha_cotizacion, datetime.min.time())
-                        else:
-                            proyecto.fecha_presentacion_cotizacion = None
+                        if nueva_fecha_deadline:
+                            proyecto.fecha_deadline_propuesta = datetime.combine(nueva_fecha_deadline, datetime.min.time())
                         
                         proyecto.fecha_ultima_actualizacion = datetime.now()
                         proyecto.historial.append(f"Editado el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
