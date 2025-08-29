@@ -55,8 +55,8 @@ def verificar_y_crear_tabla():
                 estado_actual TEXT DEFAULT 'OPORTUNIDAD',
                 fecha_creacion TEXT NOT NULL,
                 fecha_ultima_actualizacion TEXT NOT NULL,
-                fecha_presentacion_cotizacion TEXT,
                 fecha_deadline_propuesta TEXT,
+                fecha_presentacion_cotizacion TEXT,
                 historial TEXT DEFAULT '[]',
                 activo INTEGER DEFAULT 1
             )
@@ -108,37 +108,41 @@ def cargar_proyectos():
                     moneda = 'PEN'
                     tipo_cambio_historico = 3.80
                     activo = 1
-                    fecha_presentacion_cotizacion = None
                     fecha_deadline_propuesta = None
+                    fecha_presentacion_cotizacion = None
+                    
                     
                 elif len(row) == 12:  # Con activo pero sin moneda
                     (id_, codigo, nombre, cliente, descripcion, valor, asignado_a,
                      estado, fecha_creacion, fecha_update, historial, activo) = row
                     moneda = 'PEN'
                     tipo_cambio_historico = 3.80
-                    fecha_presentacion_cotizacion = None
                     fecha_deadline_propuesta = None
+                    fecha_presentacion_cotizacion = None
+                    
                     
                 elif len(row) == 13:  # Con moneda pero sin activo
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado, fecha_creacion, 
                      fecha_update, historial) = row
                     activo = 1
-                    fecha_presentacion_cotizacion = None
                     fecha_deadline_propuesta = None
-                    
+                    fecha_presentacion_cotizacion = None
+
+                
                 elif len(row) == 14:  # Sin fechas adicionales
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
                      fecha_update, historial, activo) = row
                     estado = estado_actual
-                    fecha_presentacion_cotizacion = None
                     fecha_deadline_propuesta = None
+                    fecha_presentacion_cotizacion = None
+                    
                     
                 elif len(row) == 16:  # CON TODAS LAS COLUMNAS
                     (id_, codigo, nombre, cliente, descripcion, valor, moneda,
                      tipo_cambio_historico, asignado_a, estado_actual, fecha_creacion, 
-                     fecha_update, fecha_presentacion_cotizacion, fecha_deadline_propuesta, historial, activo) = row
+                     fecha_update, fecha_deadline_propuesta, fecha_presentacion_cotizacion, historial, activo) = row
                     estado = estado_actual
                     
                 else:
@@ -244,8 +248,8 @@ def actualizar_proyecto(proyecto: Proyecto):
             UPDATE proyectos
             SET nombre=?, cliente=?, descripcion=?, valor_estimado=?, moneda=?,
                 tipo_cambio_historico=?, asignado_a=?, estado_actual=?, 
-                fecha_ultima_actualizacion=?, fecha_presentacion_cotizacion=?,
-                fecha_deadline_propuesta=?, historial=?
+                fecha_ultima_actualizacion=?, fecha_deadline_propuesta=?, fecha_presentacion_cotizacion=?,
+                , historial=?
             WHERE id=?
         """, (
             proyecto.nombre,
@@ -257,8 +261,8 @@ def actualizar_proyecto(proyecto: Proyecto):
             proyecto.asignado_a,
             proyecto.estado_actual.name,
             proyecto.fecha_ultima_actualizacion.isoformat(),
-            proyecto.fecha_presentacion_cotizacion.isoformat() if proyecto.fecha_presentacion_cotizacion else None,
             proyecto.fecha_deadline_propuesta.isoformat() if proyecto.fecha_deadline_propuesta else None,
+            proyecto.fecha_presentacion_cotizacion.isoformat() if proyecto.fecha_presentacion_cotizacion else None,
             json.dumps(proyecto.historial),
             proyecto.id
         ))
