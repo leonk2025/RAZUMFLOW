@@ -37,7 +37,7 @@ class Cliente(Base):
     nombre = Column(String(200), nullable=False)
     ruc = Column(String(20), unique=True)
     industria = Column(String(100))
-    tamaño_empresa = Column(String(50))
+    tamanio_empresa = Column(String(50))
     pais = Column(String(100), default="Perú")
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
@@ -152,9 +152,9 @@ class Proyecto(Base):
     def obtener_nivel_alerta_deadline(self):
         if not self.fecha_deadline_propuesta:
             return 'sin_deadline'
-        
+
         dias_restantes = (self.fecha_deadline_propuesta - datetime.now()).days
-        
+
         if dias_restantes < 0:
             return 'vencido'
         elif dias_restantes == 0:
