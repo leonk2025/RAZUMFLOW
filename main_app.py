@@ -424,9 +424,15 @@ else:
 # Sidebar de edición con flujo lineal
 # ==============================
 if st.session_state.editando:
-    proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
+    try:
+        proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
 
-    if proyecto:
+        # DEBUG: Mostrar si se encontró el proyecto
+        if not proyecto:
+            st.sidebar.error("❌ Proyecto no encontrado")
+            st.session_state.editando = None
+            st.rerun()
+
         with st.sidebar:
             st.header(f"✏️ Editar Proyecto #{proyecto.id}")
             st.caption(f"Código: **{proyecto.codigo_proyecto}** • Estado actual: **{proyecto.estado_actual}**")
@@ -559,7 +565,10 @@ if st.session_state.editando:
                         _close_editor()
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
-
+    except Exception as e:
+        st.sidebar.error(f"❌ Error cargando proyecto: {str(e)}")
+        st.session_state.editando = None
+        st.rerun()
     else:
         st.session_state.editando = None
         st.rerun()
