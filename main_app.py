@@ -2,7 +2,7 @@ import streamlit as st
 from sqlalchemy.orm import Session
 from datetime import datetime
 import requests
-from database import SessionLocal, engine
+from database import SessionLocal
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
 
 # ==============================
@@ -40,12 +40,35 @@ def cargar_proyectos():
         db = SessionLocal()
         proyectos = db.query(Proyecto).filter(Proyecto.activo == True).all()
         
-        # Cargar relaciones para cada proyecto
+        # Convertir strings de fecha a datetime objects MANUALMENTE
         for proyecto in proyectos:
-            proyecto.cliente_obj = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
-            proyecto.asignado_a_obj = db.query(Usuario).filter(Usuario.id == proyecto.asignado_a_id).first()
-            if proyecto.contacto_principal_id:
-                proyecto.contacto_principal_obj = db.query(Contacto).filter(Contacto.id == proyecto.contacto_principal_id).first()
+            # Fecha creación
+            if isinstance(proyecto.fecha_creacion, str):
+                try:
+                    proyecto.fecha_creacion = datetime.fromisoformat(proyecto.fecha_creacion.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    proyecto.fecha_creacion = datetime.now()
+            
+            # Fecha última actualización
+            if isinstance(proyecto.fecha_ultima_actualizacion, str):
+                try:
+                    proyecto.fecha_ultima_actualizacion = datetime.fromisoformat(proyecto.fecha_ultima_actualizacion.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    proyecto.fecha_ultima_actualizacion = datetime.now()
+            
+            # Fecha deadline
+            if proyecto.fecha_deadline_propuesta and isinstance(proyecto.fecha_deadline_propuesta, str):
+                try:
+                    proyecto.fecha_deadline_propuesta = datetime.fromisoformat(proyecto.fecha_deadline_propuesta.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    proyecto.fecha_deadline_propuesta = None
+            
+            # Fecha cotización
+            if proyecto.fecha_presentacion_cotizacion and isinstance(proyecto.fecha_presentacion_cotizacion, str):
+                try:
+                    proyecto.fecha_presentacion_cotizacion = datetime.fromisoformat(proyecto.fecha_presentacion_cotizacion.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    proyecto.fecha_presentacion_cotizacion = None
         
         db.close()
         return proyectos
@@ -75,33 +98,46 @@ def cargar_clientes():
         st.error(f"❌ Error cargando clientes: {str(e)}")
         return []
 
+def cargar_contactos():
+    """Carga todos los contactos"""
+    try:
+        db = SessionLocal()
+        contactos = db.query(Contacto).all()
+        db.close()
+        return contactos
+    except Exception as e:
+        st.error(f"❌ Error cargando contactos: {str(e)}")
+        return []
+
 def actualizar_proyecto(proyecto_actualizado):
     """Actualiza un proyecto en la base de datos"""
     try:
         db = SessionLocal()
-        proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
+        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
         
-        if proyecto:
-            # Actualizar campos
-            proyecto.nombre = proyecto_actualizado.nombre
-            proyecto.descripcion = proyecto_actualizado.descripcion
-            proyecto.valor_estimado = proyecto_actualizado.valor_estimado
-            proyecto.moneda = proyecto_actualizado.moneda
-            proyecto.estado_actual = proyecto_actualizado.estado_actual
-            proyecto.fecha_ultima_actualizacion = datetime.now()
-            proyecto.fecha_deadline_propuesta = proyecto_actualizado.fecha_deadline_propuesta
-            proyecto.fecha_presentacion_cotizacion = proyecto_actualizado.fecha_presentacion_cotizacion
+        if proyecto_db:
+            # Actualizar campos básicos
+            proyecto_db.nombre = proyecto_actualizado.nombre
+            proyecto_db.descripcion = proyecto_actualizado.descripcion
+            proyecto_db.valor_estimado = proyecto_actualizado.valor_estimado
+            proyecto_db.moneda = proyecto_actualizado.moneda
+            proyecto_db.estado_actual = proyecto_actualizado.estado_actual
+            proyecto_db.fecha_ultima_actualizacion = datetime.now()
+            proyecto_db.fecha_deadline_propuesta = proyecto_actualizado.fecha_deadline_propuesta
+            proyecto_db.fecha_presentacion_cotizacion = proyecto_actualizado.fecha_presentacion_cotizacion
             
             # Actualizar relaciones
-            proyecto.cliente_id = proyecto_actualizado.cliente_id
-            proyecto.asignado_a_id = proyecto_actualizado.asignado_a_id
-            proyecto.contacto_principal_id = proyecto_actualizado.contacto_principal_id
+            proyecto_db.cliente_id = proyecto_actualizado.cliente_id
+            proyecto_db.asignado_a_id = proyecto_actualizado.asignado_a_id
+            proyecto_db.contacto_principal_id = proyecto_actualizado.contacto_principal_id
             
             db.commit()
         
         db.close()
+        return True
     except Exception as e:
         st.error(f"❌ Error actualizando proyecto: {str(e)}")
+        return False
 
 # ==============================
 # Inicialización segura
@@ -113,6 +149,8 @@ try:
         st.session_state.usuarios = cargar_usuarios()
     if "clientes" not in st.session_state:
         st.session_state.clientes = cargar_clientes()
+    if "contactos" not in st.session_state:
+        st.session_state.contactos = cargar_contactos()
     if "editando" not in st.session_state:
         st.session_state.editando = None
     if "tipo_cambio_actual" not in st.session_state:
@@ -269,6 +307,16 @@ st.markdown("### Visualiza el flujo de proyectos entre estados")
 # ==============================
 def crear_tarjeta_proyecto(proyecto, estado):
     color = colores_estados.get(estado, "#ccc")
+    
+    # Obtener nombres de relaciones
+    db = SessionLocal()
+    cliente = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
+    usuario = db.query(Usuario).filter(Usuario.id == proyecto.asignado_a_id).first()
+    db.close()
+    
+    cliente_nombre = cliente.nombre if cliente else "Sin cliente"
+    usuario_nombre = usuario.nombre if usuario else "Sin asignar"
+    
     dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
     extra_lines = []
 
@@ -307,10 +355,6 @@ def crear_tarjeta_proyecto(proyecto, estado):
     valor_pen = convertir_a_pen(proyecto.valor_estimado, proyecto.moneda)
     moneda_badge_color = "#4CAF50" if proyecto.moneda == 'PEN' else "#2196F3"
     moneda_text = "S/ " if proyecto.moneda == 'PEN' else "$ "
-
-    # Obtener nombres de relaciones
-    cliente_nombre = proyecto.cliente_obj.nombre if proyecto.cliente_obj else "Sin cliente"
-    usuario_nombre = proyecto.asignado_a_obj.nombre if proyecto.asignado_a_obj else "Sin asignar"
 
     # Crear contenedor para la tarjeta con botón
     col1, col2 = st.columns([4, 1])
@@ -424,6 +468,18 @@ if st.session_state.editando:
                     index=0
                 )
 
+                # Selector de contacto principal
+                contactos_cliente = [c for c in st.session_state.contactos if c.cliente_id == cliente_seleccionado]
+                opciones_contactos = {c.id: f"{c.nombre} - {c.cargo}" for c in contactos_cliente}
+                
+                contacto_seleccionado = st.selectbox(
+                    "Contacto principal",
+                    options=list(opciones_contactos.keys()),
+                    format_func=lambda x: opciones_contactos[x],
+                    index=0 if not opciones_contactos else None,
+                    disabled=not opciones_contactos
+                )
+
                 # Fechas adicionales
                 col_fecha1, col_fecha2 = st.columns(2)
 
@@ -461,6 +517,7 @@ if st.session_state.editando:
                         proyecto.moneda = nueva_moneda
                         proyecto.cliente_id = cliente_seleccionado
                         proyecto.asignado_a_id = usuario_seleccionado
+                        proyecto.contacto_principal_id = contacto_seleccionado if contacto_seleccionado else None
 
                         if nueva_fecha_cotizacion:
                             proyecto.fecha_presentacion_cotizacion = datetime.combine(nueva_fecha_cotizacion, datetime.min.time())
@@ -469,9 +526,9 @@ if st.session_state.editando:
 
                         proyecto.fecha_ultima_actualizacion = datetime.now()
                         
-                        actualizar_proyecto(proyecto)
-                        st.success("✅ Guardado!")
-                        _close_editor()
+                        if actualizar_proyecto(proyecto):
+                            st.success("✅ Guardado!")
+                            _close_editor()
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
@@ -495,9 +552,9 @@ if st.session_state.editando:
                 try:
                     proyecto.estado_actual = anterior.value
                     proyecto.fecha_ultima_actualizacion = datetime.now()
-                    actualizar_proyecto(proyecto)
-                    st.success(f"✅ Movido a {anterior.value}")
-                    _close_editor()
+                    if actualizar_proyecto(proyecto):
+                        st.success(f"✅ Movido a {anterior.value}")
+                        _close_editor()
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
 
@@ -505,9 +562,9 @@ if st.session_state.editando:
                 try:
                     proyecto.estado_actual = siguiente.value
                     proyecto.fecha_ultima_actualizacion = datetime.now()
-                    actualizar_proyecto(proyecto)
-                    st.success(f"✅ Movido a {siguiente.value}")
-                    _close_editor()
+                    if actualizar_proyecto(proyecto):
+                        st.success(f"✅ Movido a {siguiente.value}")
+                        _close_editor()
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
 
@@ -557,6 +614,7 @@ if st.button("🔄 Actualizar Datos", help="Recargar datos desde la base de dato
     st.session_state.proyectos = cargar_proyectos()
     st.session_state.usuarios = cargar_usuarios()
     st.session_state.clientes = cargar_clientes()
+    st.session_state.contactos = cargar_contactos()
     st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
     st.success("✅ Datos actualizados!")
     st.rerun()
