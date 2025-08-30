@@ -171,7 +171,14 @@ def cargar_proyectos():
         conn = get_connection()
         c = conn.cursor()
         c.execute("""
-            SELECT p.*, c.nombre as cliente_nombre, u.nombre as usuario_nombre 
+            SELECT 
+                p.id, p.codigo_proyecto, p.nombre, p.cliente_id, p.descripcion, 
+                p.valor_estimado, p.moneda, p.tipo_cambio_historico, p.asignado_a_id, 
+                p.estado_actual, p.fecha_creacion, p.fecha_ultima_actualizacion, 
+                p.fecha_deadline_propuesta, p.fecha_presentacion_cotizacion, 
+                p.historial, p.activo, p.contacto_principal_id,
+                c.nombre as cliente_nombre, 
+                u.nombre as usuario_nombre
             FROM proyectos p 
             LEFT JOIN clientes c ON p.cliente_id = c.id 
             LEFT JOIN usuarios u ON p.asignado_a_id = u.id 
