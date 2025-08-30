@@ -467,8 +467,9 @@ if st.session_state.editando:
                 )
 
                 # Selector de contacto principal
-                contactos_cliente = [c for c in st.session_state.contactos if c.cliente_id == cliente_seleccionado]
-                opciones_contactos = {c.id: f"{c.nombre} - {c.cargo}" for c in contactos_cliente}
+                # Selector de contacto principal - CON VERIFICACIÓN
+                contactos_cliente = [c for c in st.session_state.contactos if c and hasattr(c, 'cliente_id') and c.cliente_id == cliente_seleccionado]
+                opciones_contactos = {c.id: f"{c.nombre} - {c.cargo}" for c in contactos_cliente if c and hasattr(c, 'nombre')}
 
                 contacto_seleccionado = st.selectbox(
                     "Contacto principal",
