@@ -371,7 +371,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
         """, unsafe_allow_html=True)
 
     with col2:
-        if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar proyecto"):
+        if st.button("✏️", key=f"edit_{proyecto.codigo_proyecto}", help="Editar proyecto"):
             st.session_state.editando = proyecto.id
             st.rerun()
 
