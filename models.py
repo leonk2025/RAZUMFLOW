@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 import random
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -19,11 +19,13 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100), nullable=False)
     email = Column(String(150), unique=True, nullable=False)
-    rol = Column(String(50), default="vendedor")
+    telefono = Column(String(20))
+    cargo = Column(String(100))
+    rol = Column(String(50), default="operacion")
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
 
-    proyectos = relationship("Proyecto", back_populates="asignado")
+    proyectos = relationship("Proyecto", back_populates="asignado_a")
 
     def __str__(self):
         return f"{self.nombre} ({self.email})"
@@ -88,7 +90,7 @@ class Proyecto(Base):
     asignado_a_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)
     contacto_principal_id = Column(Integer, ForeignKey('contactos.id'))
 
-    estado_actual = Column(SQLEnum(Estado), default=Estado.OPORTUNIDAD)
+    estado_actual = Column(String(20), default="OPORTUNIDAD")
     fecha_creacion = Column(DateTime, default=datetime.now)
     fecha_ultima_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     fecha_deadline_propuesta = Column(DateTime)
@@ -99,7 +101,7 @@ class Proyecto(Base):
 
     # Relaciones
     cliente = relationship("Cliente", back_populates="proyectos")
-    asignado = relationship("Usuario", back_populates="proyectos")
+    asignado_a = relationship("Usuario", back_populates="proyectos")
     contacto_principal = relationship("Contacto")
     historial = relationship("EventoHistorial", back_populates="proyecto", order_by="EventoHistorial.timestamp.desc()")
 
@@ -121,22 +123,21 @@ class Proyecto(Base):
         self.fecha_ultima_actualizacion = datetime.now()
 
     def mover_a_estado(self, nuevo_estado, usuario_id=None):
-        if isinstance(nuevo_estado, Estado):
-            estado_anterior = self.estado_actual
-            self.estado_actual = nuevo_estado
-            self.actualizar_probabilidad_cierre()
-            self.agregar_evento_historial(
-                f"Estado cambiado de {estado_anterior.value} a {nuevo_estado.value}",
-                usuario_id
-            )
+        estado_anterior = self.estado_actual
+        self.estado_actual = nuevo_estado.value if isinstance(nuevo_estado, Estado) else nuevo_estado
+        self.actualizar_probabilidad_cierre()
+        self.agregar_evento_historial(
+            f"Estado cambiado de {estado_anterior} a {self.estado_actual}",
+            usuario_id
+        )
 
     def actualizar_probabilidad_cierre(self):
         probabilidades = {
-            Estado.OPORTUNIDAD: 25,
-            Estado.PREVENTA: 50,
-            Estado.DELIVERY: 75,
-            Estado.COBRANZA: 90,
-            Estado.POSTVENTA: 100
+            "OPORTUNIDAD": 25,
+            "PREVENTA": 50,
+            "DELIVERY": 75,
+            "COBRANZA": 90,
+            "POSTVENTA": 100
         }
         self.probabilidad_cierre = probabilidades.get(self.estado_actual, 25)
 
@@ -148,6 +149,29 @@ class Proyecto(Base):
                 usuario_id
             )
 
-    # Resto de métodos permanecen similares pero adaptados para SQLAlchemy
+    def obtener_nivel_alerta_deadline(self):
+        if not self.fecha_deadline_propuesta:
+            return 'sin_deadline'
+        
+        dias_restantes = (self.fecha_deadline_propuesta - datetime.now()).days
+        
+        if dias_restantes < 0:
+            return 'vencido'
+        elif dias_restantes == 0:
+            return 'critico'
+        elif dias_restantes <= 1:
+            return 'muy_urgente'
+        elif dias_restantes <= 3:
+            return 'urgente'
+        elif dias_restantes <= 7:
+            return 'por_vencer'
+        else:
+            return 'disponible'
+
+    def dias_restantes_deadline(self):
+        if not self.fecha_deadline_propuesta:
+            return None
+        return (self.fecha_deadline_propuesta - datetime.now()).days
+
     def __str__(self):
-        return f"{self.codigo_proyecto} - {self.nombre} ({self.estado_actual.value})"
+        return f"{self.codigo_proyecto} - {self.nombre} ({self.estado_actual})"
