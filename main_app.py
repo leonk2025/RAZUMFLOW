@@ -32,14 +32,14 @@ def cargar_proyectos():
     try:
         db = SessionLocal()
         proyectos = db.query(Proyecto).filter(Proyecto.activo == True).all()
-        
+
         # Cargar relaciones para evitar lazy loading
         for proyecto in proyectos:
             # Forzar carga de relaciones
             _ = proyecto.cliente
             _ = proyecto.asignado_a
             _ = proyecto.contacto_principal
-            
+
             # Convertir strings de fecha a datetime objects
             if isinstance(proyecto.fecha_creacion, str):
                 try:
@@ -137,6 +137,10 @@ def actualizar_proyecto(proyecto_actualizado):
 # ==============================
 # Inicialización segura
 # ==============================
+# Inicializar primero el estado de edición FUERA del try-catch
+if "editando" not in st.session_state:
+    st.session_state.editando = None
+
 try:
     if "proyectos" not in st.session_state:
         st.session_state.proyectos = cargar_proyectos()
@@ -146,8 +150,6 @@ try:
         st.session_state.clientes = cargar_clientes()
     if "contactos" not in st.session_state:
         st.session_state.contactos = cargar_contactos()
-    if "editando" not in st.session_state:
-        st.session_state.editando = None
     if "tipo_cambio_actual" not in st.session_state:
         st.session_state.tipo_cambio_actual = obtener_tipo_cambio_actual()
 
