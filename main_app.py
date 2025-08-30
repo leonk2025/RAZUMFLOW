@@ -424,6 +424,8 @@ else:
 # Sidebar de edición con flujo lineal
 # ==============================
 if st.session_state.editando:
+    # DEBUG: Verificar que estamos en modo edición
+    st.sidebar.write(f"DEBUG: Editando proyecto ID {st.session_state.editando}")
     try:
         proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
 
