@@ -1,16 +1,14 @@
 import streamlit as st
-import sqlite3
-import json
+from sqlalchemy.orm import Session
 from datetime import datetime
-from models import Proyecto, Estado
 import requests
+from database import SessionLocal, engine
+from models import Proyecto, Estado, Usuario, Cliente, Contacto
 
 # ==============================
 # Configuración inicial
 # ==============================
 st.set_page_config(page_title="Workflow de Proyectos", page_icon="🏢", layout="wide")
-
-DB_PATH = "proyectos.db"
 
 # ==============================
 # Función para obtener tipo de cambio SUNAT
@@ -27,127 +25,40 @@ def obtener_tipo_cambio_actual():
         return 3.80  # Valor por defecto
 
 # ==============================
-# Funciones de Base de Datos
+# Funciones de Base de Datos ORM
 # ==============================
-def get_connection():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def verificar_y_crear_tablas():
-    """Verifica que las tablas existen y las crea si es necesario"""
-    conn = get_connection()
-    c = conn.cursor()
-
-    # Verificar si la tabla proyectos existe
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='proyectos'")
-    if not c.fetchone():
-        # Crear tabla proyectos si no existe
-        c.execute("""
-            CREATE TABLE proyectos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo_proyecto TEXT NOT NULL UNIQUE,
-                nombre TEXT NOT NULL,
-                cliente_id INTEGER,
-                descripcion TEXT,
-                valor_estimado REAL DEFAULT 0,
-                moneda TEXT DEFAULT 'PEN',
-                tipo_cambio_historico REAL DEFAULT 3.80,
-                asignado_a_id INTEGER,
-                estado_actual TEXT DEFAULT 'OPORTUNIDAD',
-                fecha_creacion TEXT NOT NULL,
-                fecha_ultima_actualizacion TEXT NOT NULL,
-                fecha_deadline_propuesta TEXT,
-                fecha_presentacion_cotizacion TEXT,
-                historial TEXT DEFAULT '[]',
-                activo INTEGER DEFAULT 1,
-                contacto_principal_id INTEGER
-            )
-        """)
-        conn.commit()
-        st.success("✅ Tabla de proyectos creada exitosamente!")
-
-    # Verificar si la tabla usuarios existe
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'")
-    if not c.fetchone():
-        # Crear tabla usuarios si no existe
-        c.execute("""
-            CREATE TABLE usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                telefono TEXT,
-                cargo TEXT,
-                rol TEXT DEFAULT 'operacion',
-                activo INTEGER DEFAULT 1,
-                fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Insertar usuarios por defecto
-        usuarios = [
-            ('Carlos León Legua', 'cgleon@razumtek.pe', '980335105', 'CEO', 'admin'),
-            ('Fabiola Sánchez Medina', 'fabiola.sanchez@razumtek.pe', '917306607', 'Logística', 'operacion'),
-            ('Yusneidy Nuñez Gonzales', 'yusneidy.nunez@razumtek.pe', '945833560', 'Ejecutiva Comercial', 'operacion')
-        ]
-        for usuario in usuarios:
-            c.execute("INSERT INTO usuarios (nombre, email, telefono, cargo, rol) VALUES (?, ?, ?, ?, ?)", usuario)
-        conn.commit()
-        st.success("✅ Tabla de usuarios creada exitosamente!")
-
-    # Verificar si la tabla clientes existe
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clientes'")
-    if not c.fetchone():
-        # Crear tabla clientes si no existe
-        c.execute("""
-            CREATE TABLE clientes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                ruc TEXT UNIQUE,
-                industria TEXT,
-                tamaño_empresa TEXT,
-                activo INTEGER DEFAULT 1,
-                fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Insertar clientes por defecto
-        clientes = [
-            ('PETROPERÚ', '20100043217', 'Minería', 'Grande'),
-            ('Poder Judicial', '20100138541', 'Gobierno', 'Grande'),
-            ('Ministerio Público', '20100102731', 'Gobierno', 'Grande')
-        ]
-        for cliente in clientes:
-            c.execute("INSERT INTO clientes (nombre, ruc, industria, tamaño_empresa) VALUES (?, ?, ?, ?)", cliente)
-        conn.commit()
-        st.success("✅ Tabla de clientes creada exitosamente!")
-
-    # Verificar columnas adicionales en proyectos
-    c.execute("PRAGMA table_info(proyectos)")
-    columns = [column[1] for column in c.fetchall()]
-
-    # Actualizar columnas si es necesario (mantener compatibilidad)
-    if 'cliente_id' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN cliente_id INTEGER")
-        # Migrar datos existentes
-        c.execute("UPDATE proyectos SET cliente_id = 1 WHERE cliente_id IS NULL")
-        conn.commit()
-
-    if 'asignado_a_id' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN asignado_a_id INTEGER")
-        c.execute("UPDATE proyectos SET asignado_a_id = 1 WHERE asignado_a_id IS NULL")
-        conn.commit()
-
-    if 'contacto_principal_id' not in columns:
-        c.execute("ALTER TABLE proyectos ADD COLUMN contacto_principal_id INTEGER")
-        conn.commit()
-
-    conn.close()
+def cargar_proyectos():
+    """Carga todos los proyectos activos con relaciones"""
+    try:
+        db = SessionLocal()
+        proyectos = db.query(Proyecto).filter(Proyecto.activo == True).all()
+        
+        # Cargar relaciones para cada proyecto
+        for proyecto in proyectos:
+            proyecto.cliente_obj = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
+            proyecto.asignado_a_obj = db.query(Usuario).filter(Usuario.id == proyecto.asignado_a_id).first()
+            if proyecto.contacto_principal_id:
+                proyecto.contacto_principal_obj = db.query(Contacto).filter(Contacto.id == proyecto.contacto_principal_id).first()
+        
+        db.close()
+        return proyectos
+    except Exception as e:
+        st.error(f"❌ Error cargando proyectos: {str(e)}")
+        return []
 
 def cargar_usuarios():
     """Carga todos los usuarios activos"""
     try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT id, nombre, email, cargo FROM usuarios WHERE activo = 1")
-        usuarios = c.fetchall()
-        conn.close()
+        db = SessionLocal()
+        usuarios = db.query(Usuario).filter(Usuario.activo == True).all()
+        db.close()
         return usuarios
     except Exception as e:
         st.error(f"❌ Error cargando usuarios: {str(e)}")
@@ -156,164 +67,39 @@ def cargar_usuarios():
 def cargar_clientes():
     """Carga todos los clientes activos"""
     try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT id, nombre, ruc FROM clientes WHERE activo = 1")
-        clientes = c.fetchall()
-        conn.close()
+        db = SessionLocal()
+        clientes = db.query(Cliente).filter(Cliente.activo == True).all()
+        db.close()
         return clientes
     except Exception as e:
         st.error(f"❌ Error cargando clientes: {str(e)}")
         return []
 
-def cargar_proyectos():
+def actualizar_proyecto(proyecto_actualizado):
+    """Actualiza un proyecto en la base de datos"""
     try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("""
-            SELECT 
-                p.id, p.codigo_proyecto, p.nombre, p.cliente_id, p.descripcion, 
-                p.valor_estimado, p.moneda, p.tipo_cambio_historico, p.asignado_a_id, 
-                p.estado_actual, p.fecha_creacion, p.fecha_ultima_actualizacion, 
-                p.fecha_deadline_propuesta, p.fecha_presentacion_cotizacion, 
-                p.historial, p.activo, p.contacto_principal_id,
-                c.nombre as cliente_nombre, 
-                u.nombre as usuario_nombre
-            FROM proyectos p 
-            LEFT JOIN clientes c ON p.cliente_id = c.id 
-            LEFT JOIN usuarios u ON p.asignado_a_id = u.id 
-            WHERE p.activo = 1
-        """)
-        rows = c.fetchall()
-        conn.close()
-
-        proyectos = []
-        for row in rows:
-            try:
-                # Estructura actualizada con joins
-                (id_, codigo, nombre, cliente_id, descripcion, valor, moneda,
-                 tipo_cambio_historico, asignado_a_id, estado, fecha_creacion, 
-                 fecha_update, fecha_deadline, fecha_cotizacion, historial, 
-                 activo, contacto_id, cliente_nombre, usuario_nombre) = row
-
-                # Solo procesar proyectos activos
-                if activo == 0:
-                    continue
-                    
-                p = Proyecto(
-                    nombre=nombre,
-                    cliente=cliente_nombre or "Sin cliente",
-                    valor_estimado=valor,
-                    descripcion=descripcion or "",
-                    asignado_a=usuario_nombre or "Sin asignar",
-                    moneda=moneda or 'PEN',
-                    tipo_cambio_historico=tipo_cambio_historico or 3.80
-                )
-                p.id = id_
-                p.codigo_proyecto = codigo
-                p.cliente_id = cliente_id
-                p.asignado_a_id = asignado_a_id
-
-                # Verificar que el estado existe en el enum
-                try:
-                    p.estado_actual = Estado[estado]
-                except KeyError:
-                    st.warning(f"⚠️ Estado desconocido '{estado}' para proyecto {codigo}. Usando OPORTUNIDAD.")
-                    p.estado_actual = Estado.OPORTUNIDAD
-
-                # Convertir fechas de forma segura
-                try:
-                    if isinstance(fecha_creacion, str):
-                        p.fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
-                    else:
-                        p.fecha_creacion = datetime.now()
-                except (ValueError, TypeError):
-                    p.fecha_creacion = datetime.now()
-                    
-                try:
-                    if isinstance(fecha_update, str):
-                        p.fecha_ultima_actualizacion = datetime.fromisoformat(fecha_update.replace('Z', '+00:00'))
-                    else:
-                        p.fecha_ultima_actualizacion = datetime.now()
-                except (ValueError, TypeError):
-                    p.fecha_ultima_actualizacion = datetime.now()
-
-                # Manejar fechas de cotización y deadline
-                try:
-                    if fecha_cotizacion and isinstance(fecha_cotizacion, str):
-                        p.fecha_presentacion_cotizacion = datetime.fromisoformat(fecha_cotizacion.replace('Z', '+00:00'))
-                    else:
-                        p.fecha_presentacion_cotizacion = None
-                except (ValueError, TypeError):
-                    p.fecha_presentacion_cotizacion = None
-
-                try:
-                    if fecha_deadline and isinstance(fecha_deadline, str):
-                        p.fecha_deadline_propuesta = datetime.fromisoformat(fecha_deadline.replace('Z', '+00:00'))
-                    else:
-                        p.fecha_deadline_propuesta = None
-                except (ValueError, TypeError):
-                    p.fecha_deadline_propuesta = None
-
-                # Manejar historial
-                if historial:
-                    try:
-                        if isinstance(historial, str) and historial.strip().startswith('['):
-                            p.historial = json.loads(historial)
-                        else:
-                            p.historial = [str(historial)]
-                    except (json.JSONDecodeError, AttributeError, TypeError):
-                        p.historial = []
-                else:
-                    p.historial = []
-
-                proyectos.append(p)
-
-            except Exception as e:
-                st.error(f"❌ Error procesando proyecto {row[0] if row else 'desconocido'}: {str(e)}")
-                continue
-
-        return proyectos
-
-    except sqlite3.OperationalError as e:
-        if "no such table" in str(e):
-            st.error("❌ La tabla 'proyectos' no existe. Ejecuta el script de creación primero.")
-            st.stop()
-        else:
-            st.error(f"❌ Error de base de datos: {str(e)}")
-            st.stop()
-    except Exception as e:
-        st.error(f"❌ Error inesperado cargando proyectos: {str(e)}")
-        st.stop()
-
-def actualizar_proyecto(proyecto: Proyecto):
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("""
-            UPDATE proyectos
-            SET nombre=?, cliente_id=?, descripcion=?, valor_estimado=?, moneda=?,
-                tipo_cambio_historico=?, asignado_a_id=?, estado_actual=?, 
-                fecha_ultima_actualizacion=?, fecha_deadline_propuesta=?, fecha_presentacion_cotizacion=?,
-                historial=?
-            WHERE id=?
-        """, (
-            proyecto.nombre,
-            proyecto.cliente_id,
-            proyecto.descripcion,
-            proyecto.valor_estimado,
-            proyecto.moneda,
-            proyecto.tipo_cambio_historico,
-            proyecto.asignado_a_id,
-            proyecto.estado_actual.name,
-            proyecto.fecha_ultima_actualizacion.isoformat(),
-            proyecto.fecha_deadline_propuesta.isoformat() if proyecto.fecha_deadline_propuesta else None,
-            proyecto.fecha_presentacion_cotizacion.isoformat() if proyecto.fecha_presentacion_cotizacion else None,
-            json.dumps(proyecto.historial),
-            proyecto.id
-        ))
-        conn.commit()
-        conn.close()
+        db = SessionLocal()
+        proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
+        
+        if proyecto:
+            # Actualizar campos
+            proyecto.nombre = proyecto_actualizado.nombre
+            proyecto.descripcion = proyecto_actualizado.descripcion
+            proyecto.valor_estimado = proyecto_actualizado.valor_estimado
+            proyecto.moneda = proyecto_actualizado.moneda
+            proyecto.estado_actual = proyecto_actualizado.estado_actual
+            proyecto.fecha_ultima_actualizacion = datetime.now()
+            proyecto.fecha_deadline_propuesta = proyecto_actualizado.fecha_deadline_propuesta
+            proyecto.fecha_presentacion_cotizacion = proyecto_actualizado.fecha_presentacion_cotizacion
+            
+            # Actualizar relaciones
+            proyecto.cliente_id = proyecto_actualizado.cliente_id
+            proyecto.asignado_a_id = proyecto_actualizado.asignado_a_id
+            proyecto.contacto_principal_id = proyecto_actualizado.contacto_principal_id
+            
+            db.commit()
+        
+        db.close()
     except Exception as e:
         st.error(f"❌ Error actualizando proyecto: {str(e)}")
 
@@ -321,8 +107,6 @@ def actualizar_proyecto(proyecto: Proyecto):
 # Inicialización segura
 # ==============================
 try:
-    verificar_y_crear_tablas()
-
     if "proyectos" not in st.session_state:
         st.session_state.proyectos = cargar_proyectos()
     if "usuarios" not in st.session_state:
@@ -408,7 +192,7 @@ st.markdown("""
   margin: 16px 0;
 }
 .moneda-badge {
-  font-size: 10px; 
+  font-size: 10px;
   padding: 2px 6px;
   border-radius: 8px;
   margin-left: 4px;
@@ -473,7 +257,6 @@ else:
     st.markdown("""
     <div class="status-info">
         <strong>ℹ️ Sistema iniciado:</strong> No hay proyectos en el sistema.
-        <a href="pages/1_Oportunidades.py">Crear nueva oportunidad →</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -506,12 +289,12 @@ def crear_tarjeta_proyecto(proyecto, estado):
                 f"⏳ Cotización en preparación"
                 f"</div>"
             )
-        
+
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
         nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
         estilo = obtener_estilo_deadline(nivel_alerta)
         dias_restantes = proyecto.dias_restantes_deadline()
-        
+
         if dias_restantes is not None and not proyecto.fecha_presentacion_cotizacion:
             texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
             extra_lines.append(
@@ -525,6 +308,10 @@ def crear_tarjeta_proyecto(proyecto, estado):
     moneda_badge_color = "#4CAF50" if proyecto.moneda == 'PEN' else "#2196F3"
     moneda_text = "S/ " if proyecto.moneda == 'PEN' else "$ "
 
+    # Obtener nombres de relaciones
+    cliente_nombre = proyecto.cliente_obj.nombre if proyecto.cliente_obj else "Sin cliente"
+    usuario_nombre = proyecto.asignado_a_obj.nombre if proyecto.asignado_a_obj else "Sin asignar"
+
     # Crear contenedor para la tarjeta con botón
     col1, col2 = st.columns([4, 1])
 
@@ -532,8 +319,8 @@ def crear_tarjeta_proyecto(proyecto, estado):
         st.markdown(f"""
         <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
             <strong>{proyecto.nombre}</strong><br>
-            <span style="font-size:12px;">🏢 {proyecto.cliente}</span><br>
-            <span style="font-size:12px;">👤 {proyecto.asignado_a}</span><br>
+            <span style="font-size:12px;">🏢 {cliente_nombre}</span><br>
+            <span style="font-size:12px;">👤 {usuario_nombre}</span><br>
             <span style="font-size:13px; font-weight:bold; color:{color};">
                 💰 {moneda_text}{proyecto.valor_estimado:,.0f}
                 <span class='moneda-badge' style='background:{moneda_badge_color}; color:white;'>
@@ -567,7 +354,7 @@ if st.session_state.proyectos:
 
     for estado, col in cols_map.items():
         color = colores_estados[estado]
-        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado]
+        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado.value]
 
         with col:
             st.markdown(
@@ -588,19 +375,14 @@ if st.session_state.proyectos:
                     with st.container():
                         crear_tarjeta_proyecto(proyecto, estado)
 
-            if estado == Estado.OPORTUNIDAD:
-                st.page_link("pages/1_Oportunidades.py", label="📊 Gestionar Oportunidades")
-            else:
-                st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
+            st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
 
 else:
     st.info("🚀 ¡Bienvenido! No hay proyectos en el sistema aún.")
     st.markdown("### Para comenzar:")
-    st.markdown("1. 📊 Ve a **Gestionar Oportunidades**")
-    st.markdown("2. ➕ Crea tu primera oportunidad")
-    st.markdown("3. 🔄 Observa cómo fluye por los estados")
-
-    st.page_link("pages/1_Oportunidades.py", label="🚀 Crear Primera Oportunidad")
+    st.markdown("1. 📊 Ejecuta el script de creación de base de datos")
+    st.markdown("2. 🔄 Recarga la aplicación")
+    st.markdown("3. ➕ Crea tu primera oportunidad")
 
 # ==============================
 # Sidebar de edición con flujo lineal
@@ -611,30 +393,30 @@ if st.session_state.editando:
     if proyecto:
         with st.sidebar:
             st.header(f"✏️ Editar Proyecto #{proyecto.id}")
-            st.caption(f"Código: **{proyecto.codigo_proyecto}** • Estado actual: **{proyecto.estado_actual.value}**")
+            st.caption(f"Código: **{proyecto.codigo_proyecto}** • Estado actual: **{proyecto.estado_actual}**")
 
             with st.form(f"form_edit_{proyecto.id}", clear_on_submit=False):
                 nuevo_nombre = st.text_input("Nombre", proyecto.nombre)
-                
+
                 # Selector de cliente
-                opciones_clientes = {c[0]: f"{c[1]} ({c[2]})" for c in st.session_state.clientes}
+                opciones_clientes = {c.id: f"{c.nombre} ({c.ruc})" for c in st.session_state.clientes}
                 cliente_seleccionado = st.selectbox(
                     "Cliente",
                     options=list(opciones_clientes.keys()),
                     format_func=lambda x: opciones_clientes[x],
                     index=0
                 )
-                
-                nueva_descripcion = st.text_area("Descripción", proyecto.descripcion)
-                
+
+                nueva_descripcion = st.text_area("Descripción", proyecto.descripcion or "")
+
                 col_moneda, col_valor = st.columns(2)
                 with col_moneda:
                     nueva_moneda = st.selectbox("Moneda", ["PEN", "USD"], index=0 if proyecto.moneda == "PEN" else 1)
                 with col_valor:
                     nuevo_valor = st.number_input("Valor estimado", min_value=0, step=1000, value=int(proyecto.valor_estimado))
-                
+
                 # Selector de usuario asignado
-                opciones_usuarios = {u[0]: f"{u[1]} ({u[3]})" for u in st.session_state.usuarios}
+                opciones_usuarios = {u.id: f"{u.nombre} ({u.cargo})" for u in st.session_state.usuarios}
                 usuario_seleccionado = st.selectbox(
                     "Asignado a",
                     options=list(opciones_usuarios.keys()),
@@ -644,9 +426,9 @@ if st.session_state.editando:
 
                 # Fechas adicionales
                 col_fecha1, col_fecha2 = st.columns(2)
-                
+
                 with col_fecha1:
-                    disabled_cotizacion = proyecto.estado_actual != Estado.PREVENTA
+                    disabled_cotizacion = proyecto.estado_actual != "PREVENTA"
                     nueva_fecha_cotizacion = st.date_input(
                         "Fecha presentación cotización",
                         value=proyecto.fecha_presentacion_cotizacion.date() if proyecto.fecha_presentacion_cotizacion else None,
@@ -654,9 +436,9 @@ if st.session_state.editando:
                         disabled=disabled_cotizacion,
                         help="Solo editable en estado PREVENTA" if disabled_cotizacion else None
                     )
-                
+
                 with col_fecha2:
-                    disabled_deadline = proyecto.estado_actual not in [Estado.OPORTUNIDAD, Estado.PREVENTA]
+                    disabled_deadline = proyecto.estado_actual not in ["OPORTUNIDAD", "PREVENTA"]
                     nueva_fecha_deadline = st.date_input(
                         "Fecha deadline propuesta",
                         value=proyecto.fecha_deadline_propuesta.date() if proyecto.fecha_deadline_propuesta else None,
@@ -664,7 +446,7 @@ if st.session_state.editando:
                         disabled=disabled_deadline,
                         help="Solo editable en estados OPORTUNIDAD y PREVENTA" if disabled_deadline else None
                     )
-                
+
                 col1, col2 = st.columns(2)
                 with col1:
                     guardar = st.form_submit_button("💾 Guardar")
@@ -674,19 +456,18 @@ if st.session_state.editando:
                 if guardar:
                     try:
                         proyecto.nombre = nuevo_nombre
-                        proyecto.cliente_id = cliente_seleccionado
                         proyecto.descripcion = nueva_descripcion
                         proyecto.valor_estimado = nuevo_valor
                         proyecto.moneda = nueva_moneda
+                        proyecto.cliente_id = cliente_seleccionado
                         proyecto.asignado_a_id = usuario_seleccionado
-                        
+
                         if nueva_fecha_cotizacion:
                             proyecto.fecha_presentacion_cotizacion = datetime.combine(nueva_fecha_cotizacion, datetime.min.time())
                         if nueva_fecha_deadline:
                             proyecto.fecha_deadline_propuesta = datetime.combine(nueva_fecha_deadline, datetime.min.time())
-                        
+
                         proyecto.fecha_ultima_actualizacion = datetime.now()
-                        proyecto.historial.append(f"Editado el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
                         
                         actualizar_proyecto(proyecto)
                         st.success("✅ Guardado!")
@@ -700,15 +481,20 @@ if st.session_state.editando:
             st.markdown("---")
             st.subheader("🔄 Acciones de Flujo")
 
-            idx = flujo_estados.index(proyecto.estado_actual)
+            # Convertir estado actual a Enum para el flujo
+            try:
+                estado_actual_enum = Estado(proyecto.estado_actual)
+                idx = flujo_estados.index(estado_actual_enum)
+            except:
+                idx = 0
+
             anterior = flujo_estados[idx-1] if idx > 0 else None
             siguiente = flujo_estados[idx+1] if idx < len(flujo_estados)-1 else None
 
             if anterior and st.button(f"⬅️ Retroceder a {anterior.value}"):
                 try:
-                    proyecto.estado_actual = anterior
+                    proyecto.estado_actual = anterior.value
                     proyecto.fecha_ultima_actualizacion = datetime.now()
-                    proyecto.historial.append(f"Retrocedido a {anterior.value} el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
                     actualizar_proyecto(proyecto)
                     st.success(f"✅ Movido a {anterior.value}")
                     _close_editor()
@@ -717,20 +503,14 @@ if st.session_state.editando:
 
             if siguiente and st.button(f"➡️ Avanzar a {siguiente.value}"):
                 try:
-                    proyecto.estado_actual = siguiente
+                    proyecto.estado_actual = siguiente.value
                     proyecto.fecha_ultima_actualizacion = datetime.now()
-                    proyecto.historial.append(f"Avanzado a {siguiente.value} el {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
                     actualizar_proyecto(proyecto)
                     st.success(f"✅ Movido a {siguiente.value}")
                     _close_editor()
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
 
-            st.markdown("---")
-            st.subheader("📜 Historial")
-            historial_items = getattr(proyecto, "historial", [])[-5:]  # Últimos 5
-            for h in historial_items:
-                st.write(f"• {h}")
     else:
         st.session_state.editando = None
         st.rerun()
@@ -744,9 +524,9 @@ if st.session_state.proyectos:
 
     resumen_cols = st.columns(5)
     for i, estado in enumerate(flujo_estados):
-        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado]
+        proyectos_estado = [p for p in st.session_state.proyectos if p.estado_actual == estado.value]
         color = colores_estados[estado]
-        
+
         total_valor_pen = sum(convertir_a_pen(p.valor_estimado, p.moneda) for p in proyectos_estado)
 
         with resumen_cols[i]:
