@@ -140,7 +140,7 @@ def actualizar_proyecto(proyecto_actualizado):
 
            
             db.commit()
-            db.execute(text("PRAGMA wal_checkpoint(FULL);"))
+            #db.execute(text("PRAGMA wal_checkpoint(FULL);"))
             db.close()
             st.cache_data.clear()
             logger.debug("DEBUG: Commit exitoso")
