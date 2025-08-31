@@ -783,15 +783,15 @@ elif vista_modo == "Tabla":
 
                 with col5:
                     with st.popover("📊 Ver Detalles"):
-                    st.write(f"**Descripción:** {proyecto.descripcion}")
-                    st.write(f"**Moneda:** {proyecto.moneda}")
-                    if proyecto.moneda == 'USD':
-                        st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
-                    if proyecto.fecha_deadline_propuesta:
-                        dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
-                        st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
-                    st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
-                    st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+                        st.write(f"**Descripción:** {proyecto.descripcion}")
+                        st.write(f"**Moneda:** {proyecto.moneda}")
+                        if proyecto.moneda == 'USD':
+                            st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
+                        if proyecto.fecha_deadline_propuesta:
+                            dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
+                            st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
+                        st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
+                        st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
 
                     # Cargar historial desde la tabla eventos_historial
                     try:
