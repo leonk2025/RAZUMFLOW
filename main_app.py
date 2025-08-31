@@ -108,7 +108,9 @@ def actualizar_proyecto(proyecto_actualizado):
     """Actualiza un proyecto en la base de datos"""
     try:
         db = SessionLocal()
-        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
+
+        # Obtener el proyecto usando with_for_update para bloqueo
+        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
 
         if proyecto_db:
             # Actualizar campos básicos
@@ -126,6 +128,7 @@ def actualizar_proyecto(proyecto_actualizado):
             proyecto_db.asignado_a_id = proyecto_actualizado.asignado_a_id
             proyecto_db.contacto_principal_id = proyecto_actualizado.contacto_principal_id
 
+            db.flush()
             db.commit()
 
         db.close()
@@ -539,7 +542,7 @@ if st.session_state.editando:
 
                         if actualizar_proyecto(proyecto):
                             st.success("✅ Guardado!")
-                            #_close_editor()
+                            _close_editor()
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
