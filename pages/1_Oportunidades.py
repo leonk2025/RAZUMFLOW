@@ -724,7 +724,7 @@ elif vista_modo == "Tabla":
                 return 'background-color: #e8f5e8; color: #388e3c; font-weight: bold'
 
         def aplicar_color_deadline(val):
-           estilos = obtener_estilo_deadline(val)  # ← Usar la misma función de estilos
+            estilos = obtener_estilo_deadline(val)  # ← Usar la misma función de estilos
             return f'background-color: {estilos["fondo"]}; color: {estilos["color"]}; font-weight: bold'
 
         styled_df = df.style \
