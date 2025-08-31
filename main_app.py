@@ -483,7 +483,7 @@ if st.session_state.editando:
                     "Cliente",
                     options=list(opciones_clientes.keys()),
                     format_func=lambda x: opciones_clientes[x],
-                    index=0
+                    index=cliente_index
                 )
 
                 nueva_descripcion = st.text_area("Descripción", proyecto.descripcion or "")
