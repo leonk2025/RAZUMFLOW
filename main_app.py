@@ -4,6 +4,7 @@ from datetime import datetime
 import requests
 from database import SessionLocal
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
+from sqlalchemy import text
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -110,8 +111,9 @@ def cargar_contactos():
 
 def actualizar_proyecto(proyecto_actualizado):
     """Actualiza un proyecto en la base de datos"""
+    db = SessionLocal()
     try:
-        db = SessionLocal()
+        
 
         # Obtener el proyecto usando with_for_update para bloqueo
         proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
@@ -136,9 +138,9 @@ def actualizar_proyecto(proyecto_actualizado):
             logger.debug(f"DEBUG: Actualizando proyecto ID {proyecto_db.id}")
             logger.debug(f"DEBUG: Nuevos valores - Nombre: {proyecto_db.nombre}, Cliente ID: {proyecto_db.cliente_id}, Asignado ID: {proyecto_db.asignado_a_id}")
 
-            db.flush()
+           
             db.commit()
-            db.execute("PRAGMA wal_checkpoint(FULL);")
+            db.execute(text("PRAGMA wal_checkpoint(FULL);"))
             db.close()
             st.cache_data.clear()
             logger.debug("DEBUG: Commit exitoso")
@@ -148,7 +150,8 @@ def actualizar_proyecto(proyecto_actualizado):
     except Exception as e:
         st.error(f"❌ Error actualizando proyecto: {str(e)}")
         return False
-
+    finally:
+        db.close()
 # ==============================
 # Inicialización segura
 # ==============================
