@@ -817,21 +817,38 @@ st.markdown("---")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("### 📈 Estadísticas")
-    if proyectos_oportunidades:
-        criticas = len([p for p in proyectos_oportunidades
-                       if (datetime.now() - p.fecha_ultima_actualizacion).days > 15])
-        riesgo = len([p for p in proyectos_oportunidades
-                     if 7 < (datetime.now() - p.fecha_ultima_actualizacion).days <= 15])
-        normales = len(proyectos_oportunidades) - criticas - riesgo
+    #st.markdown("### 📈 Estadísticas")
+    #if proyectos_oportunidades:
 
-        st.write(f"🟢 Normales: {normales}")
-        st.write(f"🟠 En Riesgo: {riesgo}")
-        st.write(f"🔴 Críticas: {criticas}")
+
+    #    criticas = len([p for p in proyectos_oportunidades
+    #                   if (datetime.now() - p.fecha_ultima_actualizacion).days > 15])
+    #    riesgo = len([p for p in proyectos_oportunidades
+    #                 if 7 < (datetime.now() - p.fecha_ultima_actualizacion).days <= 15])
+    #    normales = len(proyectos_oportunidades) - criticas - riesgo
+
+    #   st.write(f"🟢 Normales: {normales}")
+    #    st.write(f"🟠 En Riesgo: {riesgo}")
+    #    st.write(f"🔴 Críticas: {criticas}")
+
+    st.markdown("### 📈 Estadísticas por Deadline")
+    if proyectos_oportunidades:
+        # Agrupar en categorías principales
+        alta_prioridad = len([p for p in proyectos_oportunidades
+                            if calcular_criticidad_deadline(p) in ['vencido', 'critico', 'muy_urgente']])
+        media_prioridad = len([p for p in proyectos_oportunidades
+                             if calcular_criticidad_deadline(p) in ['urgente', 'por_vencer']])
+        baja_prioridad = len([p for p in proyectos_oportunidades
+                            if calcular_criticidad_deadline(p) in ['disponible', 'sin_deadline']])
+
+        st.write(f"🔴 Alta Prioridad: {alta_prioridad}")
+        st.write(f"🟠 Media Prioridad: {media_prioridad}")
+        st.write(f"🟢 Baja Prioridad: {baja_prioridad}")
+        st.write(f"📋 Total: {len(proyectos_oportunidades)}")
 
 with col2:
     st.markdown("### 💡 Consejos")
-    st.write("• Contacta oportunidades críticas (>15 días)")
+    st.write("• Trabajar oportunidades críticas primero (<1 día)")
     st.write("• Actualiza el estado regularmente")
     st.write("• Mueve a Preventa cuando esté listo")
 
