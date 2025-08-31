@@ -743,8 +743,8 @@ elif vista_modo == "Tabla":
             .applymap(aplicar_color_riesgo, subset=['Estado Riesgo']) \
             .applymap(aplicar_color_deadline, subset=['Estado Deadline'])
 
-        # Mostrar tabla sin la columna ID
-        columnas_mostrar = [col for col in df.columns if col != "ID"]
+        # Mostrar tabla sin la columna ID y la columna riesto
+        columnas_mostrar = [col for col in df.columns if (col != "ID" and col !="Estado Riesgo")]
         st.dataframe(styled_df.format({"ID": lambda x: ""}),
                     column_config={"ID": None},
                     hide_index=True,
