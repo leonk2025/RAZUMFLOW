@@ -116,8 +116,9 @@ def actualizar_proyecto(proyecto_actualizado):
         
 
         # Obtener el proyecto usando with_for_update para bloqueo
-        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
-
+        #proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
+        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
+        
         if proyecto_db:
             # Actualizar campos básicos
             proyecto_db.nombre = proyecto_actualizado.nombre
