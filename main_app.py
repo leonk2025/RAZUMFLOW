@@ -441,7 +441,12 @@ if st.session_state.proyectos:
                     with st.container():
                         crear_tarjeta_proyecto(proyecto, estado)
 
-            st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
+            # BOTÓN MODIFICADO - Ahora redirige a la página de oportunidades
+            if estado == Estado.OPORTUNIDAD:
+                if st.button("📊 Administrar Oportunidades", key=f"btn_{estado}", use_container_width=True):
+                    st.switch_page("pages/1_Oportunidades.py")
+            else:
+                st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
 
 else:
     st.info("🚀 ¡Bienvenido! No hay proyectos en el sistema aún.")
@@ -496,10 +501,10 @@ if st.session_state.editando:
 
                 # Selector de usuario asignado
                 opciones_usuarios = {u.id: f"{u.nombre} ({u.cargo})" for u in st.session_state.usuarios}
-                
+
                 usuario_ids = list(opciones_usuarios.keys())
                 usuario_index = usuario_ids.index(proyecto.asignado_a_id) if proyecto.asignado_a_id in usuario_ids else 0
-                
+
                 usuario_seleccionado = st.selectbox(
                     "Asignado a",
                     options=usuario_ids,  # usar la misma lista que para calcular el índice
