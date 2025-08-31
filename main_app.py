@@ -4,7 +4,6 @@ from datetime import datetime
 import requests
 from database import SessionLocal
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
-from sqlalchemy import text
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -109,16 +108,19 @@ def cargar_contactos():
         st.error(f"❌ Error cargando contactos: {str(e)}")
         return []
 
+def refrescar_proyecto(proyecto_id):
+    with SessionLocal() as db:
+        return db.query(Proyecto).filter_by(id=proyecto_id).first()
+
 def actualizar_proyecto(proyecto_actualizado):
     """Actualiza un proyecto en la base de datos"""
     db = SessionLocal()
     try:
-        
+
 
         # Obtener el proyecto usando with_for_update para bloqueo
-        #proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
-        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).first()
-        
+        proyecto_db = db.query(Proyecto).filter(Proyecto.id == proyecto_actualizado.id).with_for_update().first()
+
         if proyecto_db:
             # Actualizar campos básicos
             proyecto_db.nombre = proyecto_actualizado.nombre
@@ -139,21 +141,20 @@ def actualizar_proyecto(proyecto_actualizado):
             logger.debug(f"DEBUG: Actualizando proyecto ID {proyecto_db.id}")
             logger.debug(f"DEBUG: Nuevos valores - Nombre: {proyecto_db.nombre}, Cliente ID: {proyecto_db.cliente_id}, Asignado ID: {proyecto_db.asignado_a_id}")
 
-           
+
             db.commit()
             #db.execute(text("PRAGMA wal_checkpoint(FULL);"))
             st.cache_data.clear()
             logger.debug("DEBUG: Commit exitoso")
 
-       
+
         return True
     except Exception as e:
-        db.rollback()
-        logger.exception(f"❌ Error actualizando proyecto ID {proyecto_actualizado.id}")
         st.error(f"❌ Error actualizando proyecto: {str(e)}")
         return False
     finally:
         db.close()
+
 # ==============================
 # Inicialización segura
 # ==============================
@@ -194,7 +195,15 @@ flujo_estados = [
 # ==============================
 def _close_editor():
     st.session_state.editando = None
-    st.session_state.proyectos = cargar_proyectos()
+    #st.session_state.proyectos = cargar_proyectos()
+
+     # 👇 sincronizar solo el proyecto editado
+    proyecto_refrescado = refrescar_proyecto(proyecto.id)
+    for idx, p in enumerate(st.session_state.proyectos):
+        if p.id == proyecto.id:
+            st.session_state.proyectos[idx] = proyecto_refrescado
+            break
+
     st.rerun()
 
 def convertir_a_pen(valor, moneda):
@@ -559,7 +568,7 @@ if st.session_state.editando:
 
                         if actualizar_proyecto(proyecto):
                             st.success("✅ Guardado!")
-                            #_close_editor()
+                            _close_editor()
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
