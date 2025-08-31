@@ -233,13 +233,13 @@ def formatear_moneda(valor, moneda):
 def obtener_estilo_deadline(nivel_alerta):
     """Devuelve estilo CSS según el nivel de alerta del deadline"""
     estilos = {
-        'vencido': {'color': '#dc2626', 'icono': '☠️', 'fondo': '#fef2f2'},
-        'critico': {'color': '#ea580c', 'icono': '🔥', 'fondo': '#fff7ed'},
+        'vencido': {'color': '#666666', 'icono': '☠️', 'fondo': '#F5F5F5'},
+        'critico': {'color': '#dc2626', 'icono': '🔥', 'fondo': '#fef2f2'},
         'muy_urgente': {'color': '#ea580c', 'icono': '⏰', 'fondo': '#fff7ed'},
-        'urgente': {'color': '#ca8a04', 'icono': '⏳', 'fondo': '#fefce8'},
-        'por_vencer': {'color': '#16a34a', 'icono': '📅', 'fondo': '#f0fdf4'},
+        'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
+        'por_vencer': {'color': '#ca8a04', 'icono': '📅', 'fondo': '#fefce8'},
         'disponible': {'color': '#16a34a', 'icono': '✅', 'fondo': '#f0fdf4'},
-        'sin_deadline': {'color': '#6b7280', 'icono': '📌', 'fondo': '#f9fafb'}
+        'sin_deadline': {'color': '#16a34a', 'icono': '📌', 'fondo': '#f0fdf4'}
     }
     return estilos.get(nivel_alerta, estilos['sin_deadline'])
 
@@ -605,36 +605,28 @@ elif vista_modo == "Tarjetas":
                 if proyecto.fecha_deadline_propuesta:
                     dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
                     texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
-                    info_deadline = f"""
-                    <div style='background:{estilo_deadline['fondo']}; color:{estilo_deadline['color']};
-                                border:1px solid {estilo_deadline['color']}20; padding:4px 8px; border-radius:8px;
-                                margin:4px 0; font-size:11px;'>
-                        {estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')}
-                        <br>({texto_dias})
-                    </div>
-                    """
+                    deadline_html = f"""{estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')} ({texto_dias})"""
+                else:
+                    deadline_html = f"{estilo_deadline['icono']} Sin deadline"
 
-                # Tarjeta con estilo
-                st.markdown(f""" <div style="
-                    border: 2px solid {color_riesgo};
+                # Tarjeta con estilo basado en el deadline
+                st.markdown(f"""
+                <div style="
+                    border: 2px solid {estilo_deadline['color']};
                     border-radius: 12px;
                     padding: 16px;
                     margin: 8px 0;
-                    background: linear-gradient(145deg, {color_riesgo}08, {color_riesgo}15);
+                    background: linear-gradient(145deg, {estilo_deadline['color']}08, {estilo_deadline['color']}15);
                     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 ">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <h4 style="color: {color_riesgo}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
-                        <span style="background: {color_riesgo}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">
-                            {estado_riesgo}
-                        </span>
+                        <h4 style="color: {estilo_deadline['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
                     </div>
                     <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
-                    <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}</p>
-                    <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente.nombre if proyecto.cliente else 'Sin cliente'}</p>
-                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
-                    <p style="margin: 4px 0; font-size: 11px; color: #666;">⏰ {dias_sin_actualizar} días sin actualizar</p>
-                    {info_deadline}
+                    <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a}</p>
+                    <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente}</p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({moneda_proyecto})</small></p>
+                    {deadline_html}
                     <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -791,32 +783,32 @@ elif vista_modo == "Tabla":
 
                 with col5:
                     with st.popover("📊 Ver Detalles"):
-                        st.write(f"**Descripción:** {proyecto.descripcion}")
-                        st.write(f"**Moneda:** {proyecto.moneda}")
-                        if proyecto.moneda == 'USD':
-                            st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
-                        if proyecto.fecha_deadline_propuesta:
-                            dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
-                            st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
-                        st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
-                        st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
-    
-                        # Cargar historial desde la tabla eventos_historial
-                        try:
-                            db = SessionLocal()
-                            historial = db.execute(
-                                "SELECT timestamp, evento FROM eventos_historial WHERE proyecto_id = :proyecto_id ORDER BY timestamp DESC LIMIT 3",
-                                {"proyecto_id": proyecto.id}
-                            ).fetchall()
-                            db.close()
-    
-                            if historial:
-                                st.write("**Historial reciente:**")
-                                for h in historial:
-                                    timestamp = h[0] if isinstance(h[0], datetime) else datetime.strptime(str(h[0]), '%Y-%m-%d %H:%M:%S')
-                                    st.write(f"• {h[1]} - {timestamp.strftime('%d/%m/%Y %H:%M')}")
-                        except Exception as e:
-                            st.write("**Historial:** No disponible")
+                    st.write(f"**Descripción:** {proyecto.descripcion}")
+                    st.write(f"**Moneda:** {proyecto.moneda}")
+                    if proyecto.moneda == 'USD':
+                        st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
+                    if proyecto.fecha_deadline_propuesta:
+                        dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
+                        st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
+                    st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
+                    st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+
+                    # Cargar historial desde la tabla eventos_historial
+                    try:
+                        db = SessionLocal()
+                        historial = db.execute(
+                            "SELECT timestamp, evento FROM eventos_historial WHERE proyecto_id = :proyecto_id ORDER BY timestamp DESC LIMIT 3",
+                            {"proyecto_id": proyecto.id}
+                        ).fetchall()
+                        db.close()
+
+                        if historial:
+                            st.write("**Historial reciente:**")
+                            for h in historial:
+                                timestamp = h[0] if isinstance(h[0], datetime) else datetime.strptime(str(h[0]), '%Y-%m-%d %H:%M:%S')
+                                st.write(f"• {h[1]} - {timestamp.strftime('%d/%m/%Y %H:%M')}")
+                    except Exception as e:
+                        st.write("**Historial:** No disponible")
 
 # ==============================
 # Footer con información adicional (mantenido igual)
