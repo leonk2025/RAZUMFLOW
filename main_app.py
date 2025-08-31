@@ -127,9 +127,14 @@ def actualizar_proyecto(proyecto_actualizado):
             proyecto_db.cliente_id = proyecto_actualizado.cliente_id
             proyecto_db.asignado_a_id = proyecto_actualizado.asignado_a_id
             proyecto_db.contacto_principal_id = proyecto_actualizado.contacto_principal_id
-
+            
+            # DEBUG: Verificar cambios
+            print(f"DEBUG: Actualizando proyecto ID {proyecto_db.id}")
+            print(f"DEBUG: Nuevos valores - Nombre: {proyecto_db.nombre}, Cliente ID: {proyecto_db.cliente_id}")
+            
             db.flush()
             db.commit()
+            print("DEBUG: Commit exitoso")
 
         db.close()
         return True
@@ -542,7 +547,7 @@ if st.session_state.editando:
 
                         if actualizar_proyecto(proyecto):
                             st.success("✅ Guardado!")
-                            _close_editor()
+                            #_close_editor()
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
