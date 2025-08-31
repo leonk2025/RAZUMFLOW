@@ -505,7 +505,7 @@ if st.session_state.editando:
                     "Asignado a",
                     options=list(opciones_usuarios.keys()),
                     format_func=lambda x: opciones_usuarios[x],
-                    index=0
+                    index=usuario_index
                 )
 
                 # Selector de contacto principal
