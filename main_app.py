@@ -195,14 +195,14 @@ flujo_estados = [
 # ==============================
 def _close_editor():
     st.session_state.editando = None
-    #st.session_state.proyectos = cargar_proyectos()
+    st.session_state.proyectos = cargar_proyectos()
 
      # 👇 sincronizar solo el proyecto editado
-    proyecto_refrescado = refrescar_proyecto(proyecto.id)
-    for idx, p in enumerate(st.session_state.proyectos):
-        if p.id == proyecto.id:
-            st.session_state.proyectos[idx] = proyecto_refrescado
-            break
+    #proyecto_refrescado = refrescar_proyecto(proyecto.id)
+    #for idx, p in enumerate(st.session_state.proyectos):
+    #    if p.id == proyecto.id:
+    #        st.session_state.proyectos[idx] = proyecto_refrescado
+    #        break
 
     st.rerun()
 
