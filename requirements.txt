@@ -1,4 +1,5 @@
 #streamlit==1.28.0
-sqlalchemy==1.4.46  # Versión compatible con Streamlit Cloud
+#sqlalchemy==1.4.46  # Versión compatible con Streamlit Cloud
+sqlalchemy>=2.0,<2.1
 requests==2.31.0
 python-dotenv==1.0.0
