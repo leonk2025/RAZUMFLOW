@@ -138,6 +138,7 @@ def actualizar_proyecto(proyecto_actualizado):
 
             db.flush()
             db.commit()
+            st.cache_data.clear()
             logger.debug("DEBUG: Commit exitoso")
 
         db.close()
