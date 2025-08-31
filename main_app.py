@@ -143,7 +143,7 @@ def actualizar_proyecto(proyecto_actualizado):
 
 
             db.commit()
-            db.refresh(proyecto_db) 
+            db.refresh(proyecto_db)
             #db.execute(text("PRAGMA wal_checkpoint(FULL);"))
             st.cache_data.clear()
             logger.debug("DEBUG: Commit exitoso")
@@ -474,6 +474,11 @@ if st.session_state.editando:
 
                 # Selector de cliente
                 opciones_clientes = {c.id: f"{c.nombre} ({c.ruc})" for c in st.session_state.clientes}
+
+                cliente_ids = list(opciones_clientes.keys())
+                # calcular índice real
+                cliente_index = cliente_ids.index(proyecto.cliente_id) if proyecto.cliente_id in cliente_ids else 0
+
                 cliente_seleccionado = st.selectbox(
                     "Cliente",
                     options=list(opciones_clientes.keys()),
@@ -491,7 +496,12 @@ if st.session_state.editando:
 
                 # Selector de usuario asignado
                 opciones_usuarios = {u.id: f"{u.nombre} ({u.cargo})" for u in st.session_state.usuarios}
-                usuario_seleccionado = st.selectbox(
+
+                usuario_ids = list(opciones_usuarios.keys())
+                usuario_index = usuario_ids.index(proyecto.asignado_a_id) if proyecto.asignado_a_id in usuario_ids else 0
+
+
+               usuario_seleccionado = st.selectbox(
                     "Asignado a",
                     options=list(opciones_usuarios.keys()),
                     format_func=lambda x: opciones_usuarios[x],
@@ -503,13 +513,27 @@ if st.session_state.editando:
                 contactos_cliente = [c for c in st.session_state.contactos if c and hasattr(c, 'cliente_id') and c.cliente_id == cliente_seleccionado]
                 opciones_contactos = {c.id: f"{c.nombre} - {c.cargo}" for c in contactos_cliente if c and hasattr(c, 'nombre')}
 
-                contacto_seleccionado = st.selectbox(
-                    "Contacto principal",
-                    options=list(opciones_contactos.keys()),
-                    format_func=lambda x: opciones_contactos[x],
-                    index=0 if not opciones_contactos else None,
-                    disabled=not opciones_contactos
-                )
+                contacto_ids = list(opciones_contactos.keys())
+
+                #contacto_seleccionado = st.selectbox(
+                #    "Contacto principal",
+                #    options=list(opciones_contactos.keys()),
+                #    format_func=lambda x: opciones_contactos[x],
+                #    index=0 if not opciones_contactos else None,
+                #    disabled=not opciones_contactos
+                #)
+
+                if contacto_ids:
+                    contacto_index = contacto_ids.index(proyecto.contacto_principal_id) if proyecto.contacto_principal_id in contacto_ids else 0
+                    contacto_seleccionado = st.selectbox(
+                        "Contacto principal",
+                        options=contacto_ids,
+                        format_func=lambda x: opciones_contactos[x],
+                        index=contacto_index
+                    )
+                else:
+                    contacto_seleccionado = None
+                    st.selectbox("Contacto principal", options=["(sin contactos)"], disabled=True)
 
                 # Fechas adicionales
                 col_fecha1, col_fecha2 = st.columns(2)
