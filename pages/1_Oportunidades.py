@@ -625,7 +625,7 @@ elif vista_modo == "Tarjetas":
                     <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
                     <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a}</p>
                     <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente}</p>
-                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({moneda_proyecto})</small></p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
                     {deadline_html}
                     <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
                 </div>
