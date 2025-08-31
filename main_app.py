@@ -574,9 +574,7 @@ if st.session_state.editando:
         st.sidebar.error(f"❌ Error cargando proyecto: {str(e)}")
         st.session_state.editando = None
         st.rerun()
-    else:
-        st.session_state.editando = None
-        st.rerun()
+   
 
 # ==============================
 # Resumen general
