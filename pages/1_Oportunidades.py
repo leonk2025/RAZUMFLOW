@@ -55,7 +55,7 @@ def cargar_historial_proyecto(proyecto_id):
         return historial
     except Exception as e:
         st.error(f"Error cargando historial: {str(e)}")
-        return [
+        return []
 
 
 def crear_proyecto_orm(proyecto_data):
