@@ -427,6 +427,8 @@ if st.session_state.editando:
     # DEBUG: Verificar que estamos en modo edición
     st.sidebar.write(f"DEBUG: Editando proyecto ID {st.session_state.editando}")
     try:
+        print(f"DEBUG: Buscando proyecto ID {st.session_state.editando}")
+        print(f"DEBUG: Proyectos disponibles: {[p.id for p in st.session_state.proyectos]}")
         proyecto = next((p for p in st.session_state.proyectos if p.id == st.session_state.editando), None)
 
         # DEBUG: Mostrar si se encontró el proyecto
