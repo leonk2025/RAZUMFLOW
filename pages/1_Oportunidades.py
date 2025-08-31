@@ -791,24 +791,32 @@ elif vista_modo == "Tabla":
 
                 with col5:
                     with st.popover("📊 Ver Detalles"):
-                        st.write(f"**Descripción:** {proyecto.descripcion}")
-                        st.write(f"**Moneda:** {proyecto.moneda}")
-                        if proyecto.moneda == 'USD':
-                            st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
-                        if proyecto.fecha_deadline_propuesta:
-                            dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
-                            st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
-                        st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
-                        st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
-                        # Cargar y mostrar historial
-                        historial = cargar_historial_proyecto(proyecto.id)
+                    st.write(f"**Descripción:** {proyecto.descripcion}")
+                    st.write(f"**Moneda:** {proyecto.moneda}")
+                    if proyecto.moneda == 'USD':
+                        st.write(f"**Tipo de cambio:** {proyecto.tipo_cambio_historico}")
+                    if proyecto.fecha_deadline_propuesta:
+                        dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
+                        st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
+                    st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
+                    st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
+
+                    # Cargar historial desde la tabla eventos_historial
+                    try:
+                        db = SessionLocal()
+                        historial = db.execute(
+                            "SELECT timestamp, evento FROM eventos_historial WHERE proyecto_id = :proyecto_id ORDER BY timestamp DESC LIMIT 3",
+                            {"proyecto_id": proyecto.id}
+                        ).fetchall()
+                        db.close()
+
                         if historial:
                             st.write("**Historial reciente:**")
                             for h in historial:
-                                timestamp = h[0] if isinstance(h[0], datetime) else datetime.strptime(h[0], '%Y-%m-%d %H:%M:%S')
+                                timestamp = h[0] if isinstance(h[0], datetime) else datetime.strptime(str(h[0]), '%Y-%m-%d %H:%M:%S')
                                 st.write(f"• {h[1]} - {timestamp.strftime('%d/%m/%Y %H:%M')}")
-                        else:
-                            st.write("**Historial:** Sin eventos registrados")
+                    except Exception as e:
+                        st.write("**Historial:** No disponible")
 
 # ==============================
 # Footer con información adicional (mantenido igual)
