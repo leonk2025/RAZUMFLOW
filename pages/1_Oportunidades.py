@@ -7,6 +7,7 @@ import random
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
 from database import SessionLocal
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 # ==============================
 # Configuración de la página
@@ -28,24 +29,40 @@ def cargar_proyectos_activos():
     try:
         db = SessionLocal()
         proyectos = db.query(Proyecto).filter(Proyecto.activo == True).all()
-        
+
         # Cargar relaciones para evitar lazy loading
         for proyecto in proyectos:
             _ = proyecto.cliente
             _ = proyecto.asignado_a
             _ = proyecto.contacto_principal
-            
+
         db.close()
         return proyectos
     except Exception as e:
         st.error(f"❌ Error cargando proyectos: {str(e)}")
         return []
 
+
+def cargar_historial_proyecto(proyecto_id):
+    """Carga el historial de eventos para un proyecto específico"""
+    try:
+        db = SessionLocal()
+        historial = db.execute(
+            text("SELECT timestamp, evento FROM eventos_historial WHERE proyecto_id = :proyecto_id ORDER BY timestamp DESC LIMIT 3"),
+            {"proyecto_id": proyecto_id}
+        ).fetchall()
+        db.close()
+        return historial
+    except Exception as e:
+        st.error(f"Error cargando historial: {str(e)}")
+        return [
+
+
 def crear_proyecto_orm(proyecto_data):
     """Crea un nuevo proyecto usando ORM"""
     try:
         db = SessionLocal()
-        
+
         nuevo_proyecto = Proyecto(
             nombre=proyecto_data['nombre'],
             descripcion=proyecto_data['descripcion'],
@@ -58,12 +75,12 @@ def crear_proyecto_orm(proyecto_data):
             fecha_deadline_propuesta=proyecto_data.get('fecha_deadline'),
             codigo_convocatoria=proyecto_data.get('codigo_convocatoria')
         )
-        
+
         db.add(nuevo_proyecto)
         db.commit()
         db.refresh(nuevo_proyecto)
         db.close()
-        
+
         return nuevo_proyecto
     except Exception as e:
         db.rollback()
@@ -73,11 +90,11 @@ def actualizar_proyecto_orm(proyecto_id, datos_actualizados):
     """Actualiza un proyecto existente usando ORM"""
     try:
         db = SessionLocal()
-        
+
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if not proyecto:
             raise ValueError("Proyecto no encontrado")
-        
+
         # Actualizar campos
         proyecto.nombre = datos_actualizados['nombre']
         proyecto.descripcion = datos_actualizados['descripcion']
@@ -89,14 +106,14 @@ def actualizar_proyecto_orm(proyecto_id, datos_actualizados):
         proyecto.fecha_deadline_propuesta = datos_actualizados.get('fecha_deadline')
         proyecto.codigo_convocatoria = datos_actualizados.get('codigo_convocatoria')
         proyecto.fecha_ultima_actualizacion = datetime.now()
-        
+
         # Agregar evento al historial
         proyecto.agregar_evento_historial(f"Editado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-        
+
         db.commit()
         db.refresh(proyecto)
         db.close()
-        
+
         return proyecto
     except Exception as e:
         db.rollback()
@@ -106,15 +123,15 @@ def eliminar_proyecto_soft_orm(proyecto_id):
     """Soft delete usando ORM"""
     try:
         db = SessionLocal()
-        
+
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
             proyecto.activo = False
             proyecto.fecha_ultima_actualizacion = datetime.now()
             proyecto.agregar_evento_historial(f"Eliminado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-            
+
             db.commit()
-        
+
         db.close()
         return True
     except Exception as e:
@@ -125,14 +142,14 @@ def registrar_contacto_orm(proyecto_id):
     """Registra un contacto usando ORM"""
     try:
         db = SessionLocal()
-        
+
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
             proyecto.agregar_evento_historial(f"Contacto registrado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
             proyecto.fecha_ultima_actualizacion = datetime.now()
-            
+
             db.commit()
-        
+
         db.close()
         return datetime.now() + timedelta(days=random.randint(2, 7))
     except Exception as e:
@@ -143,12 +160,12 @@ def mover_a_preventa_orm(proyecto_id):
     """Mueve proyecto a preventa usando ORM"""
     try:
         db = SessionLocal()
-        
+
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
             proyecto.mover_a_estado(Estado.PREVENTA)
             db.commit()
-        
+
         db.close()
         return True
     except Exception as e:
@@ -783,10 +800,15 @@ elif vista_modo == "Tabla":
                             st.write(f"**Deadline:** {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y')} ({dias_restantes} días)")
                         st.write(f"**Creado:** {proyecto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
                         st.write(f"**Última actualización:** {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y %H:%M')}")
-                        if hasattr(proyecto, 'historial') and proyecto.historial:
-                            st.write("**Historial:**")
-                            for h in proyecto.historial[-3:]:
-                                st.write(f"• {h.evento} - {h.timestamp.strftime('%d/%m/%Y %H:%M')}")
+                        # Cargar y mostrar historial
+                        historial = cargar_historial_proyecto(proyecto.id)
+                        if historial:
+                            st.write("**Historial reciente:**")
+                            for h in historial:
+                                timestamp = h[0] if isinstance(h[0], datetime) else datetime.strptime(h[0], '%Y-%m-%d %H:%M:%S')
+                                st.write(f"• {h[1]} - {timestamp.strftime('%d/%m/%Y %H:%M')}")
+                        else:
+                            st.write("**Historial:** Sin eventos registrados")
 
 # ==============================
 # Footer con información adicional (mantenido igual)
