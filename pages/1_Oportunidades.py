@@ -280,7 +280,7 @@ if 'editing_project' not in st.session_state:
 # Título y navegación
 # ==============================
 st.title("📊 Dashboard de OPORTUNIDADES")
-st.page_link("main_app9-multitablauser.py", label="🔙 Volver al Workflow Principal")
+st.page_link("main_app.py", label="🔙 Volver al Workflow Principal")
 
 # ==============================
 # Cargar datos desde ORM
