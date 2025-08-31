@@ -724,20 +724,8 @@ elif vista_modo == "Tabla":
                 return 'background-color: #e8f5e8; color: #388e3c; font-weight: bold'
 
         def aplicar_color_deadline(val):
-            if val == 'vencido':
-                return 'background-color: #ffe6e6; color: #d32f2f; font-weight: bold'
-            elif val == 'critico':
-                return 'background-color: #fff3e0; color: #f57c00; font-weight: bold'
-            elif val == 'muy_urgente':
-                return 'background-color: #fff3e0; color: #f57c00; font-weight: bold'
-            elif val == 'urgente':
-                return 'background-color: #fff3e0; color: #f57c00; font-weight: bold'
-            elif val == 'por_vencer':
-                return 'background-color: #e8f5e8; color: #388e3c; font-weight: bold'
-            elif val == 'disponible':
-                return 'background-color: #e8f5e8; color: #388e3c; font-weight: bold'
-            else:
-                return 'background-color: #f5f5f5; color: #666; font-weight: normal'
+           estilos = obtener_estilo_deadline(val)  # ← Usar la misma función de estilos
+            return f'background-color: {estilos["fondo"]}; color: {estilos["color"]}; font-weight: bold'
 
         styled_df = df.style \
             .applymap(aplicar_color_riesgo, subset=['Estado Riesgo']) \
