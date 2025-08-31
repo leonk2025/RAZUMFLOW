@@ -496,17 +496,17 @@ if st.session_state.editando:
 
                 # Selector de usuario asignado
                 opciones_usuarios = {u.id: f"{u.nombre} ({u.cargo})" for u in st.session_state.usuarios}
-
+                
                 usuario_ids = list(opciones_usuarios.keys())
                 usuario_index = usuario_ids.index(proyecto.asignado_a_id) if proyecto.asignado_a_id in usuario_ids else 0
-
-
-               usuario_seleccionado = st.selectbox(
+                
+                usuario_seleccionado = st.selectbox(
                     "Asignado a",
-                    options=list(opciones_usuarios.keys()),
+                    options=usuario_ids,  # usar la misma lista que para calcular el índice
                     format_func=lambda x: opciones_usuarios[x],
                     index=usuario_index
                 )
+
 
                 # Selector de contacto principal
                 # Selector de contacto principal - CON VERIFICACIÓN
