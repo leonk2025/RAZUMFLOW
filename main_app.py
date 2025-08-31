@@ -539,7 +539,7 @@ if st.session_state.editando:
 
                         if actualizar_proyecto(proyecto):
                             st.success("✅ Guardado!")
-                            _close_editor()
+                            #_close_editor()
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
