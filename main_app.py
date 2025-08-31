@@ -512,6 +512,13 @@ if st.session_state.editando:
 
                 if guardar:
                     try:
+
+                        # DEBUG: Mostrar lo que se va a guardar
+                        st.write(f"DEBUG: Guardando proyecto ID {proyecto.id}")
+                        st.write(f"DEBUG: Nuevo nombre: {nuevo_nombre}")
+                        st.write(f"DEBUG: Nuevo cliente ID: {cliente_seleccionado}")
+                        st.write(f"DEBUG: Nuevo usuario ID: {usuario_seleccionado}")
+
                         proyecto.nombre = nuevo_nombre
                         proyecto.descripcion = nueva_descripcion
                         proyecto.valor_estimado = nuevo_valor
@@ -526,6 +533,9 @@ if st.session_state.editando:
                             proyecto.fecha_deadline_propuesta = datetime.combine(nueva_fecha_deadline, datetime.min.time())
 
                         proyecto.fecha_ultima_actualizacion = datetime.now()
+
+                        # DEBUG: Verificar el objeto antes de guardar
+                        st.write(f"DEBUG: Proyecto a guardar - ID: {proyecto.id}, Nombre: {proyecto.nombre}")
 
                         if actualizar_proyecto(proyecto):
                             st.success("✅ Guardado!")
@@ -572,7 +582,7 @@ if st.session_state.editando:
         st.sidebar.error(f"❌ Error cargando proyecto: {str(e)}")
         st.session_state.editando = None
         st.rerun()
-   
+
 
 # ==============================
 # Resumen general
