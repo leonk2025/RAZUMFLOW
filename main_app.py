@@ -133,8 +133,8 @@ def actualizar_proyecto(proyecto_actualizado):
             proyecto_db.contacto_principal_id = proyecto_actualizado.contacto_principal_id
 
             # DEBUG: Verificar cambios
-           logger.debug(f"DEBUG: Actualizando proyecto ID {proyecto_db.id}")
-           logger.debug(f"DEBUG: Nuevos valores - Nombre: {proyecto_db.nombre}, Cliente ID: {proyecto_db.cliente_id}")
+            logger.debug(f"DEBUG: Actualizando proyecto ID {proyecto_db.id}")
+            logger.debug(f"DEBUG: Nuevos valores - Nombre: {proyecto_db.nombre}, Cliente ID: {proyecto_db.cliente_id}")
 
             db.flush()
             db.commit()
