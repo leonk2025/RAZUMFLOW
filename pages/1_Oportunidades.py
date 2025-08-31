@@ -815,7 +815,7 @@ with col2:
 
 with col3:
     st.markdown("### 🔗 Navegación")
-    st.page_link("main_app9-multitablauser.py", label="🏠 Workflow Principal")
+    st.page_link("main_app.py", label="🏠 Workflow Principal")
     st.write("💾 Todos los cambios se guardan automáticamente")
 
 st.markdown("---")
