@@ -147,6 +147,8 @@ def actualizar_proyecto(proyecto_actualizado):
        
         return True
     except Exception as e:
+        db.rollback()
+        logger.exception(f"❌ Error actualizando proyecto ID {proyecto_actualizado.id}")
         st.error(f"❌ Error actualizando proyecto: {str(e)}")
         return False
     finally:
