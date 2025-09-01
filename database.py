@@ -3,7 +3,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
 # Configuración para SQLiteCloud (usa variable de entorno para seguridad)
-SQLALCHEMY_DATABASE_URL = os.getenv("SQLITECLOUD_URL", "sqlite:///proyectos.db")
+#SQLALCHEMY_DATABASE_URL = os.getenv("SQLITECLOUD_URL", "sqlite:///proyectos.db")
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLITECLOUD_URL")
 
 # Crear el engine - se adapta automáticamente según la URL
 engine = create_engine(
