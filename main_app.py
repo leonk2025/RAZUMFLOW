@@ -642,6 +642,9 @@ if st.session_state.editando:
         st.session_state.editando = None
         st.rerun()
 
+# En el sidebar de main_app.py
+if st.sidebar.button("🔍 Probar Conexión BD"):
+    st.switch_page("test_database.py")
 
 # ==============================
 # Resumen general
