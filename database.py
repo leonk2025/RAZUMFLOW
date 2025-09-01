@@ -1,10 +1,15 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, declarative_base
+import os
 
-class Base(DeclarativeBase):
-    pass
+# Configuración para SQLiteCloud (usa variable de entorno para seguridad)
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLITECLOUD_URL", "sqlite:///proyectos.db")
 
-engine = create_engine("sqlite:///proyectos.db", echo=True)
-SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+# Crear el engine - se adapta automáticamente según la URL
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite://" in SQLALCHEMY_DATABASE_URL else {}
+)
 
-
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
