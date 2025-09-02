@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 import random
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -26,6 +26,7 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     proyectos = relationship("Proyecto", back_populates="asignado_a")
+    archivos_subidos = relationship("ProyectoArchivo", back_populates="usuario")
 
     def __str__(self):
         return f"{self.nombre} ({self.email})"
@@ -62,6 +63,46 @@ class Contacto(Base):
 
     def __str__(self):
         return f"{self.nombre} - {self.cargo}"
+
+class TiposArchivo(Base):
+    __tablename__ = 'tipos_archivo'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(String(300))
+    extensiones_permitidas = Column(String(200))  # Ej: "pdf,doc,docx,xlsx"
+    es_obligatorio = Column(Boolean, default=False)
+    activo = Column(Boolean, default=True)
+    
+    archivos = relationship("ProyectoArchivo", back_populates="tipo_archivo")
+    
+    def __str__(self):
+        return self.nombre
+
+class ProyectoArchivo(Base):
+    __tablename__ = 'proyecto_archivos'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    proyecto_id = Column(Integer, ForeignKey('proyectos.id'), nullable=False)
+    tipo_archivo_id = Column(Integer, ForeignKey('tipos_archivo.id'), nullable=False)
+    usuario_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)
+    
+    nombre_original = Column(String(300), nullable=False)
+    nombre_almacenado = Column(String(500), nullable=False)
+    ruta_archivo = Column(String(500), nullable=False)
+    tamanio_bytes = Column(Integer, nullable=False)
+    fecha_subida = Column(DateTime, default=datetime.now)
+    descripcion = Column(Text)
+    version = Column(Integer, default=1)
+    activo = Column(Boolean, default=True)
+    
+    # Relaciones
+    proyecto = relationship("Proyecto", back_populates="archivos")
+    tipo_archivo = relationship("TiposArchivo", back_populates="archivos")
+    usuario = relationship("Usuario", back_populates="archivos_subidos")
+    
+    def __str__(self):
+        return f"{self.nombre_original} (v{self.version})"
 
 class EventoHistorial(Base):
     __tablename__ = 'eventos_historial'
@@ -104,6 +145,7 @@ class Proyecto(Base):
     asignado_a = relationship("Usuario", back_populates="proyectos")
     contacto_principal = relationship("Contacto")
     historial = relationship("EventoHistorial", back_populates="proyecto", order_by="EventoHistorial.timestamp.desc()")
+    archivos = relationship("ProyectoArchivo", back_populates="proyecto")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -127,7 +169,7 @@ class Proyecto(Base):
         self.estado_actual = nuevo_estado.value if isinstance(nuevo_estado, Estado) else nuevo_estado
         self.actualizar_probabilidad_cierre()
         self.agregar_evento_historial(
-            f"Estado cambiado de {estado_anterior} a {self.estado_actual}",
+            f"Estado cambiado de {estado_anterior} to {self.estado_actual}",
             usuario_id
         )
 
@@ -172,6 +214,30 @@ class Proyecto(Base):
         if not self.fecha_deadline_propuesta:
             return None
         return (self.fecha_deadline_propuesta - datetime.now()).days
+
+    def agregar_archivo(self, tipo_archivo_id, usuario_id, nombre_original, nombre_almacenado, 
+                       ruta_archivo, tamanio_bytes, descripcion=None):
+        archivo = ProyectoArchivo(
+            proyecto_id=self.id,
+            tipo_archivo_id=tipo_archivo_id,
+            usuario_id=usuario_id,
+            nombre_original=nombre_original,
+            nombre_almacenado=nombre_almacenado,
+            ruta_archivo=ruta_archivo,
+            tamanio_bytes=tamanio_bytes,
+            descripcion=descripcion
+        )
+        self.archivos.append(archivo)
+        self.agregar_evento_historial(
+            f"Archivo subido: {nombre_original}",
+            usuario_id
+        )
+        return archivo
+
+    def obtener_archivos_por_tipo(self, tipo_archivo_id=None):
+        if tipo_archivo_id:
+            return [archivo for archivo in self.archivos if archivo.tipo_archivo_id == tipo_archivo_id and archivo.activo]
+        return [archivo for archivo in self.archivos if archivo.activo]
 
     def __str__(self):
         return f"{self.codigo_proyecto} - {self.nombre} ({self.estado_actual})"
