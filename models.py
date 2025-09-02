@@ -26,7 +26,7 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     proyectos = relationship("Proyecto", back_populates="asignado_a")
-    archivos_subidos = relationship("ProyectoArchivo", back_populates="usuario")
+    archivos_subidos = relationship("ProyectoArchivos", back_populates="usuario")
 
     def __str__(self):
         return f"{self.nombre} ({self.email})"
