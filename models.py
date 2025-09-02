@@ -90,7 +90,7 @@ class ProyectoArchivos(Base):
     ruta_archivo = Column(String(500), nullable=False)    # ← Coincide con BD
     fecha_subida = Column(DateTime, default=datetime.now)
     descripcion = Column(Text)
-    activo = Column(Boolean, default=True)
+  
     
     # Relaciones (ajustar nombres)
     proyecto = relationship("Proyecto", back_populates="archivos")
