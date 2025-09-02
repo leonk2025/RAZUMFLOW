@@ -834,7 +834,7 @@ if st.session_state.editing_project is not None:
 
                         st.session_state.editing_project = None
                         st.success("✅ Cambios guardados exitosamente!")
-                        time.sleep(2)
+                        time.sleep(3)
                         st.rerun()
 
                     except Exception as e:
@@ -842,7 +842,7 @@ if st.session_state.editing_project is not None:
 
                 if cancelar:
                     st.session_state.editing_project = None
-                    time.sleep(2)
+                    time.sleep(3)
                     st.rerun()
 
 # ==============================
