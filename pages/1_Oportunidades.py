@@ -92,8 +92,8 @@ def obtener_archivos_proyecto(proyecto_id):
     """Obtiene todos los archivos de un proyecto"""
     db = SessionLocal()
     try:
-        archivos = db.query(ProyectoArchivo).filter(
-                ProyectoArchivo.proyecto_id == proyecto_id
+        archivos = db.query(ProyectoArchivos).filter(
+                ProyectoArchivos.proyecto_id == proyecto_id
         ).options(
             joinedload(ProyectoArchivos.tipo_archivo),
             joinedload(ProyectoArchivos.usuario)
