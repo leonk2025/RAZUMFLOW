@@ -95,8 +95,8 @@ def obtener_archivos_proyecto(proyecto_id):
         archivos = db.query(ProyectoArchivo).filter(
                 ProyectoArchivo.proyecto_id == proyecto_id
         ).options(
-            joinedload(ProyectoArchivo.tipo_archivo),
-            joinedload(ProyectoArchivo.usuario)
+            joinedload(ProyectoArchivos.tipo_archivo),
+            joinedload(ProyectoArchivos.usuario)
         ).all()
         return archivos
     finally:
