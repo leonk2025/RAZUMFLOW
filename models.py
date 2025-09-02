@@ -78,30 +78,27 @@ class TiposArchivo(Base):
     def __str__(self):
         return self.nombre
         
-class ProyectoArchivos(Base):
+class ProyectoArchivo(Base):
     __tablename__ = 'proyecto_archivos'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     proyecto_id = Column(Integer, ForeignKey('proyectos.id'), nullable=False)
     tipo_archivo_id = Column(Integer, ForeignKey('tipos_archivo.id'), nullable=False)
-    usuario_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)
+    subido_por_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)  # ← Coincide con BD
     
-    nombre_original = Column(String(300), nullable=False)
-    nombre_almacenado = Column(String(500), nullable=False)
-    ruta_archivo = Column(String(500), nullable=False)
-    tamanio_bytes = Column(Integer, nullable=False)
+    nombre_archivo = Column(String(300), nullable=False)  # ← Coincide con BD
+    ruta_archivo = Column(String(500), nullable=False)    # ← Coincide con BD
     fecha_subida = Column(DateTime, default=datetime.now)
     descripcion = Column(Text)
-    version = Column(Integer, default=1)
     activo = Column(Boolean, default=True)
     
-    # Relaciones
+    # Relaciones (ajustar nombres)
     proyecto = relationship("Proyecto", back_populates="archivos")
     tipo_archivo = relationship("TiposArchivo", back_populates="archivos")
-    usuario = relationship("Usuario", back_populates="archivos_subidos")
-    
+    usuario = relationship("Usuario", foreign_keys=[subido_por_id])  # ← Usar foreign_keys
+
     def __str__(self):
-        return f"{self.nombre_original} (v{self.version})"
+        return f"{self.nombre_archivo}"
 
 class EventoHistorial(Base):
     __tablename__ = 'eventos_historial'
