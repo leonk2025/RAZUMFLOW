@@ -70,8 +70,7 @@ class TiposArchivo(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100), nullable=False)
     descripcion = Column(String(300))
-    # ELIMINA esta línea: extensiones_permitidas = Column(String(200))
-    es_obligatorio = Column(Boolean, default=False)
+    
     activo = Column(Boolean, default=True)
     
     archivos = relationship("ProyectoArchivos", back_populates="tipo_archivo")
