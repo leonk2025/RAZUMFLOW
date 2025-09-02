@@ -78,7 +78,7 @@ class TiposArchivo(Base):
     def __str__(self):
         return self.nombre
         
-class ProyectoArchivo(Base):
+class ProyectoArchivos(Base):
     __tablename__ = 'proyecto_archivos'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
