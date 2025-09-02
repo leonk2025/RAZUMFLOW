@@ -74,7 +74,7 @@ class TiposArchivo(Base):
     es_obligatorio = Column(Boolean, default=False)
     activo = Column(Boolean, default=True)
     
-    archivos = relationship("ProyectoArchivo", back_populates="tipo_archivo")
+    archivos = relationship("ProyectoArchivos", back_populates="tipo_archivo")
     
     def __str__(self):
         return self.nombre
