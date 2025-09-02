@@ -10,6 +10,7 @@ from models import Proyecto, Estado, Usuario, Cliente, Contacto, TiposArchivo, P
 from database import SessionLocal
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import joinedload
 
 # ==============================
 # Configuración de la página
