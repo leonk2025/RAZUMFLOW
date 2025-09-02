@@ -145,7 +145,7 @@ class Proyecto(Base):
     asignado_a = relationship("Usuario", back_populates="proyectos")
     contacto_principal = relationship("Contacto")
     historial = relationship("EventoHistorial", back_populates="proyecto", order_by="EventoHistorial.timestamp.desc()")
-    archivos = relationship("ProyectoArchivo", back_populates="proyecto")
+    archivos = relationship("ProyectoArchivos", back_populates="proyecto")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
