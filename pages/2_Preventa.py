@@ -626,6 +626,9 @@ if proyectos_preventa:
 # ==============================
 # Formulario de Edición
 # ==============================
+# ==============================
+# Formulario de Edición (PARTE MODIFICADA)
+# ==============================
 if st.session_state.editing_project is not None:
     proyecto_editar = next((p for p in proyectos_preventa if p.id == st.session_state.editing_project), None)
 
@@ -731,9 +734,14 @@ if st.session_state.editing_project is not None:
                                     nuevo_contrato,
                                     1  # ID del usuario actual
                                 )
-                                st.success("✅ Contrato/OC subido correctamente")
-                                time.sleep(2)
-                                st.rerun()
+                                
+                                # Auto-avance a DELIVERY después de subir OC/Contrato
+                                if subir_orden_compra_orm(proyecto_editar.id, 1):
+                                    st.balloons()
+                                    st.success("🎉 ¡Contrato/OC subido y proyecto movido a DELIVERY!")
+                                    time.sleep(3)
+                                    st.session_state.editing_project = None
+                                    st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error al subir archivo: {str(e)}")
 
@@ -813,7 +821,8 @@ if st.session_state.editing_project is not None:
                                 
                                 db.commit()
                                 st.success("✅ Propuesta marcada como entregada correctamente!")
-                                time.sleep(2)
+                                time.sleep(3)
+                                st.session_state.editing_project = None
                                 st.rerun()
                         except Exception as e:
                             db.rollback()
@@ -903,7 +912,7 @@ if st.session_state.editing_project is not None:
 
                         st.session_state.editing_project = None
                         st.success("✅ Cambios guardados exitosamente!")
-                        time.sleep(2)
+                        time.sleep(3)
                         st.rerun()
 
                     except Exception as e:
@@ -911,7 +920,9 @@ if st.session_state.editing_project is not None:
 
                 if cancelar:
                     st.session_state.editing_project = None
+                    time.sleep(1)
                     st.rerun()
+
 
 # ==============================
 # Aplicar filtros
