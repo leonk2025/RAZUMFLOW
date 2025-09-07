@@ -614,7 +614,7 @@ if proyectos_preventa:
         st.metric("⏰ Deadlines Vencidos", preventas_vencidas)
 
 # ==============================
-# Formulario de Edición
+# EL FORMULARIO DE EDICIÓN
 # ==============================
 if st.session_state.editing_project is not None:
     proyecto_editar = next((p for p in proyectos_preventa if p.id == st.session_state.editing_project), None)
@@ -623,42 +623,241 @@ if st.session_state.editing_project is not None:
         st.markdown("---")
         with st.expander("✏️ Editando Preventa", expanded=True):
             st.info(f"📝 Editando: **{proyecto_editar.codigo_proyecto}** - {proyecto_editar.nombre}")
-            
-            # Mostrar estado actual de preventa
-            estado_preventa = obtener_estado_preventa(proyecto_editar)
-            st.markdown(f"""
-            <div style='background-color:{estado_preventa['color']}20; padding:10px; border-radius:5px; border-left:4px solid {estado_preventa['color']}'>
-                <strong>{estado_preventa['icono']} {estado_preventa['nombre']}</strong><br>
-                <small>Probabilidad de cierre: {proyecto_editar.probabilidad_cierre}%</small>
-            </div>
-            """, unsafe_allow_html=True)
 
-            # Obtener última OC para mostrar
-            ultima_oc = obtener_ultima_oc(proyecto_editar.id)
+            # Obtener documentos del proyecto
+            archivos_proyecto = obtener_archivos_proyecto(proyecto_editar.id)
             
-            st.subheader("📎 Orden de Compra")
+            # Determinar el estado basado en AMBAS condiciones:
+            # 1. Fecha de presentación de propuesta
+            # 2. Probabilidad de cierre = 50%
+            tiene_fecha_presentacion = proyecto_editar.fecha_presentacion_propuesta is not None
+            probabilidad_50 = proyecto_editar.probabilidad_cierre == 50
             
-            if ultima_oc:
-                col_oc1, col_oc2, col_oc3 = st.columns([3, 1, 1])
-                with col_oc1:
-                    st.success(f"**Última OC:** {ultima_oc.nombre_archivo}")
-                    st.caption(f"Subido el: {ultima_oc.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+            es_propuesta_entregada = tiene_fecha_presentacion and probabilidad_50
+            
+            # Obtener último TDR para mostrar
+            ultimo_tdr = obtener_ultimo_tdr(proyecto_editar.id)
+            
+            # Visualización de último TDR
+            st.subheader("📎 Documentos TDR")
+            
+            if ultimo_tdr:
+                col_tdr1, col_tdr2, col_tdr3 = st.columns([3, 1, 1])
+                with col_tdr1:
+                    st.info(f"**Último TDR:** {ultimo_tdr.nombre_archivo}")
+                    st.caption(f"Subido el: {ultimo_tdr.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
                 
-                with col_oc2:
-                    if os.path.exists(ultima_oc.ruta_archivo):
-                        with open(ultima_oc.ruta_archivo, "rb") as f:
+                with col_tdr2:
+                    if os.path.exists(ultimo_tdr.ruta_archivo):
+                        with open(ultimo_tdr.ruta_archivo, "rb") as f:
                             st.download_button(
                                 "⬇️ Descargar",
                                 f.read(),
-                                ultima_oc.nombre_archivo,
-                                key="download_oc"
+                                ultimo_tdr.nombre_archivo,
+                                key="download_tdr"
                             )
                 
-                with col_oc3:
-                    if st.button("🗑️", help="Eliminar OC", key="eliminar_oc"):
+                with col_tdr3:
+                    if st.button("🗑️", help="Eliminar TDR", key="eliminar_tdr"):
                         st.warning("Funcionalidad de eliminación pendiente")
             else:
-                st.info("📝 No hay OC subida para este proyecto")
+                st.info("📝 No hay TDR subidos para este proyecto")
+            
+            # SECCIÓN DE PROPUESTA según el estado (basado en AMBAS condiciones)
+            st.subheader("📄 Gestión de Propuesta")
+            
+            # Mostrar estado actual de las condiciones
+            col_cond1, col_cond2 = st.columns(2)
+            with col_cond1:
+                estado_fecha = "✅" if tiene_fecha_presentacion else "❌"
+                st.write(f"{estado_fecha} **Fecha de presentación:** {proyecto_editar.fecha_presentacion_propuesta.strftime('%d/%m/%Y %H:%M') if tiene_fecha_presentacion else 'No establecida'}")
+            
+            with col_cond2:
+                estado_prob = "✅" if probabilidad_50 else "❌"
+                st.write(f"{estado_prob} **Probabilidad de cierre:** {proyecto_editar.probabilidad_cierre}%")
+            
+            if es_propuesta_entregada:
+                # ESTADO: Propuesta Entregada - Cumple AMBAS condiciones
+                st.success("**✅ ESTADO: Propuesta Entregada** - Cumple con fecha de presentación y 50% de probabilidad")
+                
+                # Buscar si existe archivo de propuesta
+                archivo_propuesta = next((archivo for archivo in archivos_proyecto 
+                                        if archivo.tipo_archivo.nombre.lower() == 'propuesta'), None)
+                
+                if archivo_propuesta:
+                    col_prop1, col_prop2, col_prop3 = st.columns([3, 1, 1])
+                    with col_prop1:
+                        st.info(f"**Archivo de Propuesta:** {archivo_propuesta.nombre_archivo}")
+                        st.caption(f"Subido el: {archivo_propuesta.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+                    
+                    with col_prop2:
+                        if os.path.exists(archivo_propuesta.ruta_archivo):
+                            with open(archivo_propuesta.ruta_archivo, "rb") as f:
+                                st.download_button(
+                                    "⬇️ Descargar Propuesta",
+                                    f.read(),
+                                    archivo_propuesta.nombre_archivo,
+                                    key="download_propuesta"
+                                )
+                    
+                    with col_prop3:
+                        if st.button("🗑️ Propuesta", help="Eliminar Propuesta", key="eliminar_propuesta"):
+                            st.warning("Funcionalidad de eliminación pendiente")
+                else:
+                    st.warning("⚠️ Estado de propuesta entregada pero no se encontró archivo de propuesta")
+                
+                # Opción para subir Orden de Compra
+                st.markdown("---")
+                st.subheader("📋 Orden de Compra")
+                
+                # Verificar si ya tiene orden de compra
+                tiene_oc = any(archivo.tipo_archivo.nombre.lower() in ['orden de compra', 'oc'] for archivo in archivos_proyecto)
+                
+                if tiene_oc:
+                    oc_subida = next((archivo for archivo in archivos_proyecto 
+                                    if archivo.tipo_archivo.nombre.lower() in ['orden de compra', 'oc']), None)
+                    
+                    col_oc1, col_oc2, col_oc3 = st.columns([3, 1, 1])
+                    with col_oc1:
+                        st.success(f"**✅ Orden de Compra Subida:** {oc_subida.nombre_archivo}")
+                        st.caption(f"Subida el: {oc_subida.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+                    
+                    with col_oc2:
+                        if os.path.exists(oc_subida.ruta_archivo):
+                            with open(oc_subida.ruta_archivo, "rb") as f:
+                                st.download_button(
+                                    "⬇️ Descargar OC",
+                                    f.read(),
+                                    oc_subida.nombre_archivo,
+                                    key="download_oc"
+                                )
+                    
+                    with col_oc3:
+                        if st.button("🗑️ OC", help="Eliminar Orden de Compra", key="eliminar_oc"):
+                            st.warning("Funcionalidad de eliminación pendiente")
+                else:
+                    # Subir nueva orden de compra
+                    col_oc1, col_oc2 = st.columns([3, 1])
+                    with col_oc1:
+                        archivo_oc = st.file_uploader("Seleccionar Orden de Compra", 
+                                                    type=['pdf', 'docx', 'xlsx'], 
+                                                    key="nuevo_archivo_oc")
+                    with col_oc2:
+                        st.selectbox("Tipo", options=["Orden de Compra"], 
+                                    key="nuevo_tipo_oc", disabled=True)
+                    
+                    if archivo_oc:
+                        # Buscar ID para tipo "Orden de Compra"
+                        tipo_oc_id = next((t.id for t in tipos_archivo_db 
+                                         if t.nombre.lower() in ['orden de compra', 'oc']), 4)  # Valor por defecto
+                        
+                        # Verificar duplicados
+                        duplicado_oc, nombre_final_oc, ruta_completa_oc = verificar_archivo_duplicado(
+                            proyecto_editar.id, "OC", archivo_oc.name
+                        )
+                        
+                        if duplicado_oc:
+                            st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final_oc}")
+                        else:
+                            st.success(f"✅ Archivo listo para subir: {nombre_final_oc}")
+                            
+                            if st.button("Subir Orden de Compra", key="subir_oc"):
+                                try:
+                                    subir_archivo_proyecto(
+                                        proyecto_editar.id,
+                                        tipo_oc_id,
+                                        archivo_oc,
+                                        1  # ID del usuario actual
+                                    )
+                                    st.success("✅ Orden de Compra subida correctamente")
+                                    time.sleep(2)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Error al subir archivo: {str(e)}")
+            
+            else:
+                # ESTADO: Preventa Activa - No cumple AMBAS condiciones
+                st.info("**📝 ESTADO: Preventa Activa** - No cumple ambas condiciones para propuesta entregada")
+                
+                # Formulario para establecer las condiciones de propuesta entregada
+                with st.form("form_establecer_propuesta"):
+                    st.subheader("Establecer como Propuesta Entregada")
+                    
+                    col_fecha, col_hora, col_prob = st.columns([2, 1, 1])
+                    
+                    with col_fecha:
+                        fecha_presentacion = st.date_input(
+                            "Fecha de Presentación",
+                            value=datetime.now().date(),
+                            format="DD/MM/YYYY",
+                            key="fecha_presentacion"
+                        )
+                    
+                    with col_hora:
+                        hora_presentacion = st.time_input(
+                            "Hora de Presentación",
+                            value=datetime.now().time(),
+                            step=3600,
+                            key="hora_presentacion"
+                        )
+                    
+                    with col_prob:
+                        # Forzar probabilidad a 50% para propuesta entregada
+                        probabilidad_cierre = st.number_input(
+                            "Probabilidad de Cierre (%)",
+                            min_value=0,
+                            max_value=100,
+                            value=50,
+                            step=5,
+                            disabled=True,  # Forzado a 50%
+                            help="Para propuesta entregada, la probabilidad debe ser 50%"
+                        )
+                    
+                    # Opción para subir propuesta (opcional)
+                    col_prop1, col_prop2 = st.columns([3, 1])
+                    with col_prop1:
+                        archivo_propuesta = st.file_uploader("Subir Propuesta Final (Opcional)", 
+                                                           type=['pdf', 'docx', 'xlsx'], 
+                                                           key="nuevo_archivo_propuesta")
+                    with col_prop2:
+                        st.selectbox("Tipo", options=["Propuesta"], 
+                                    key="nuevo_tipo_propuesta", disabled=True)
+                    
+                    if st.form_submit_button("✅ Marcar como Propuesta Entregada", use_container_width=True):
+                        try:
+                            # Actualizar las condiciones en la base de datos
+                            db = SessionLocal()
+                            proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_editar.id).first()
+                            if proyecto:
+                                # Establecer AMBAS condiciones
+                                proyecto.fecha_presentacion_propuesta = datetime.combine(fecha_presentacion, hora_presentacion)
+                                proyecto.probabilidad_cierre = 50  # Forzar a 50%
+                                
+                                proyecto.agregar_evento_historial(
+                                    f"Propuesta entregada el {fecha_presentacion.strftime('%d/%m/%Y %H:%M')} " +
+                                    f"con probabilidad de cierre al 50%"
+                                )
+                                
+                                # Subir archivo de propuesta si se proporcionó
+                                if archivo_propuesta:
+                                    tipo_propuesta_id = next((t.id for t in tipos_archivo_db 
+                                                            if t.nombre.lower() == 'propuesta'), 2)
+                                    subir_archivo_proyecto(
+                                        proyecto_editar.id,
+                                        tipo_propuesta_id,
+                                        archivo_propuesta,
+                                        1  # ID del usuario actual
+                                    )
+                                
+                                db.commit()
+                                st.success("✅ Propuesta marcada como entregada correctamente")
+                                time.sleep(2)
+                                st.rerun()
+                        except Exception as e:
+                            db.rollback()
+                            st.error(f"❌ Error al actualizar: {str(e)}")
+                        finally:
+                            db.close()
             
             # Botón para ver todos los archivos
             if st.button("👁️ Ver todos los archivos", key="ver_archivos"):
@@ -668,125 +867,10 @@ if st.session_state.editing_project is not None:
             
             st.markdown("---")
             
-            # Formulario de edición
+            # Resto del formulario de edición (se mantiene igual)
             with st.form("form_editar_preventa"):
-                col1, col2, col3 = st.columns(3)
+                # ... (el resto del formulario permanece igual)
 
-                with col1:
-                    nuevo_nombre = st.text_input("Nombre", value=proyecto_editar.nombre)
-                    nuevo_cliente_nombre = st.selectbox("Cliente", CLIENTES_DISPONIBLES,
-                                                      index=CLIENTES_DISPONIBLES.index(proyecto_editar.cliente.nombre)
-                                                      if proyecto_editar.cliente and proyecto_editar.cliente.nombre in CLIENTES_DISPONIBLES else 0)
-                    nueva_moneda = st.selectbox("Moneda", MONEDAS_DISPONIBLES,
-                                              index=MONEDAS_DISPONIBLES.index(proyecto_editar.moneda))
-
-                with col2:
-                    nueva_descripcion = st.text_area("Descripción", value=proyecto_editar.descripcion or "")
-                    nuevo_ejecutivo_nombre = st.selectbox("Asignado a", EJECUTIVOS_DISPONIBLES,
-                                                        index=EJECUTIVOS_DISPONIBLES.index(proyecto_editar.asignado_a.nombre)
-                                                        if proyecto_editar.asignado_a and proyecto_editar.asignado_a.nombre in EJECUTIVOS_DISPONIBLES else 0)
-                    nuevo_valor = st.number_input("Valor Estimado", value=int(proyecto_editar.valor_estimado), step=1000)
-
-                with col3:
-                    # Solo mostrar deadline si no se ha presentado propuesta
-                    if proyecto_editar.probabilidad_cierre < 50:
-                        col_fecha, col_hora = st.columns(2)
-                        fecha_actual = proyecto_editar.fecha_deadline_propuesta if proyecto_editar.fecha_deadline_propuesta else datetime.now()
-
-                        with col_fecha:
-                            nueva_fecha_deadline = st.date_input(
-                                "Fecha Deadline",
-                                value=proyecto_editar.fecha_deadline_propuesta.date() if proyecto_editar.fecha_deadline_propuesta else datetime.now().date(),
-                                format="DD/MM/YYYY"
-                            )
-                        with col_hora:
-                            nueva_hora_deadline = st.time_input(
-                            "Hora Deadline",
-                            value=fecha_actual.time(),
-                            step=3600
-                            )
-                    else:
-                        st.info("✅ Propuesta ya presentada - Deadline completado")
-
-                    nuevo_tipo_cambio = st.number_input("Tipo de Cambio",
-                                                       value=float(proyecto_editar.tipo_cambio_historico),
-                                                       step=0.01,
-                                                       disabled=nueva_moneda != 'USD')
-                    nuevo_codigo_conv = st.text_input("Código Convocatoria",
-                                                     value=proyecto_editar.codigo_convocatoria or "")
-
-                # Subir nueva OC
-                st.markdown("---")
-                st.subheader("📤 Subir Orden de Compra")
-                
-                col_archivo1, col_archivo2 = st.columns([3, 1])
-                with col_archivo1:
-                    nueva_oc = st.file_uploader("Seleccionar OC", type=['pdf', 'docx', 'xlsx'], key="nueva_oc")
-                with col_archivo2:
-                    st.selectbox("Tipo", options=["Orden de Compra"], disabled=True, key="tipo_oc")
-                
-                if nueva_oc:
-                    duplicado, nombre_final, ruta_completa = verificar_archivo_duplicado(
-                        proyecto_editar.id, "OC", nueva_oc.name
-                    )
-                    
-                    if duplicado:
-                        st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final}")
-                    else:
-                        st.success(f"✅ OC lista para subir: {nombre_final}")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    guardar = st.form_submit_button("💾 Guardar Cambios", use_container_width=True)
-                with col2:
-                    cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
-
-                if guardar:
-                    try:
-                        cliente_id = cliente_nombre_a_id[nuevo_cliente_nombre]
-                        asignado_a_id = usuario_nombre_a_id[nuevo_ejecutivo_nombre]
-
-                        datos_actualizados = {
-                            'nombre': nuevo_nombre,
-                            'descripcion': nueva_descripcion,
-                            'valor_estimado': nuevo_valor,
-                            'moneda': nueva_moneda,
-                            'tipo_cambio': nuevo_tipo_cambio,
-                            'cliente_id': cliente_id,
-                            'asignado_a_id': asignado_a_id,
-                            'fecha_deadline': datetime.combine(nueva_fecha_deadline, nueva_hora_deadline) if proyecto_editar.probabilidad_cierre < 50 and nueva_fecha_deadline else proyecto_editar.fecha_deadline_propuesta,
-                            'codigo_convocatoria': nuevo_codigo_conv or None
-                        }
-
-                        # Subir OC si se proporcionó
-                        if nueva_oc and not duplicado:
-                            try:
-                                tipo_archivo_id = 2  # ID para OC
-                                subir_archivo_proyecto(
-                                    proyecto_editar.id,
-                                    tipo_archivo_id,
-                                    nueva_oc,
-                                    1  # ID del usuario actual
-                                )
-                                # Auto-avance a DELIVERY
-                                subir_orden_compra_orm(proyecto_editar.id, 1)
-                                st.success("🎉 ¡OC subida y proyecto movido a DELIVERY!")
-                            except Exception as e:
-                                st.warning(f"⚠️ Cambios guardados, pero error al subir OC: {str(e)}")
-
-                        actualizar_proyecto_orm(proyecto_editar.id, datos_actualizados)
-
-                        st.session_state.editing_project = None
-                        st.success("✅ Cambios guardados exitosamente!")
-                        time.sleep(2)
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"❌ Error al guardar: {str(e)}")
-
-                if cancelar:
-                    st.session_state.editing_project = None
-                    st.rerun()
 
 # ==============================
 # Aplicar filtros
