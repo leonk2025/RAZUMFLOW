@@ -511,7 +511,7 @@ if st.session_state.modal_archivos_abierto and st.session_state.proyecto_archivo
 # ==============================
 with st.sidebar:
     st.header("🎛️ Opciones de Visualización")
-    vista_modo = st.radio("Modo de vista:", ["Tarjetas", "Tabla", "Timeline"])
+    vista_modo = st.radio("Modo de vista:", ["Tarjetas", "Tabla"])
 
     moneda_visualizacion = st.selectbox("Moneda para visualización:", MONEDAS_DISPONIBLES)
 
