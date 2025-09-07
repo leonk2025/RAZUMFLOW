@@ -445,7 +445,8 @@ if st.session_state.proyectos:
             if estado == Estado.OPORTUNIDAD:
                 if st.button("📊 Administrar Oportunidades", key=f"btn_{estado}", use_container_width=True):
                     st.switch_page("pages/1_Oportunidades.py")
-            elif st.button("📊 Administrar Preventa", key=f"btn_{estado}", use_container_width=True):
+            elif estado == Estado.PREVENTA: 
+                if st.button("📊 Administrar Preventa", key=f"btn_{estado}", use_container_width=True):
                     st.switch_page("pages/2_Preventa.py")
             else:
                 st.button("⏳ Próximamente", key=f"btn_{estado}", disabled=True, use_container_width=True)
