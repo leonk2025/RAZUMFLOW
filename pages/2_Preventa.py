@@ -966,8 +966,9 @@ st.header(f"📋 Lista de Preventas ({len(proyectos_filtrados)} encontradas)")
 if not proyectos_filtrados:
     st.info("🔍 No hay preventas que coincidan con los filtros aplicados.")
 
+
 # ==============================
-# VISTA DE TARJETAS
+# VISTA DE TARJETAS (CON ESTILO DE OPORTUNIDADES)
 # ==============================
 elif vista_modo == "Tarjetas":
     cols = st.columns(3)
@@ -977,76 +978,66 @@ elif vista_modo == "Tarjetas":
         color_riesgo = get_color_riesgo(dias_sin_actualizar)
         estado_riesgo = get_estado_riesgo(dias_sin_actualizar)
 
-        # Obtener sub-estado de preventa
+        # Obtener sub-estado de preventa (conservamos los colores originales)
         estado_preventa = obtener_estado_preventa(proyecto)
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
         estilo_deadline = obtener_estilo_deadline(criticidad_deadline)
 
         # Convertir valor a moneda de visualización
-        valor_visualizacion = convertir_moneda(
+        valor_convertido = convertir_moneda(
             proyecto.valor_estimado,
             proyecto.moneda,
             moneda_visualizacion,
             proyecto.tipo_cambio_historico
         )
 
+        # Formatear valor según moneda
+        valor_formateado = formatear_moneda(valor_convertido, moneda_visualizacion)
+
+        # Calcular próximo contacto (similar a Oportunidades)
+        fecha_proximo_contacto = proyecto.fecha_ultima_actualizacion + timedelta(days=random.randint(1, 5))
+
         with cols[i % 3]:
             with st.container():
-                # Header con información de sub-estado
+                # Información del deadline (estilo igual a Oportunidades)
+                info_deadline = ""
+                if proyecto.fecha_deadline_propuesta and proyecto.probabilidad_cierre < 50:
+                    dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
+                    texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
+                    deadline_html = f"""{estilo_deadline['icono']} Deadline: {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%y')} ({texto_dias})"""
+                elif proyecto.fecha_presentacion_cotizacion:
+                    deadline_html = f"✅ Propuesta: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%y')}"
+                else:
+                    deadline_html = f"{estilo_deadline['icono']} Sin deadline"
+
+                # TARJETA CON ESTILO DE OPORTUNIDADES pero color de estado preventa
                 st.markdown(f"""
-                <div style='border-radius:10px; padding:15px; margin-bottom:15px; 
-                            background-color:{estado_preventa['color']}20; border-left:5px solid {estado_preventa['color']}'>
-                    <h4 style='margin:0; color:{estado_preventa['color']}'>{estado_preventa['icono']} {estado_preventa['nombre']}</h4>
-                    <p style='margin:0; font-size:0.8em; color:#666'>
-                        Probabilidad: {proyecto.probabilidad_cierre}% | 
-                        Últ. actualización: {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y')}
-                    </p>
+                <div style="
+                    border: 2px solid {estado_preventa['color']};
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 8px 0;
+                    background: linear-gradient(145deg, {estado_preventa['color']}08, {estado_preventa['color']}15);
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h4 style="color: {estado_preventa['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
+                        <span style="background-color: {estado_preventa['color']}20; color: {estado_preventa['color']}; 
+                                    padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                            {estado_preventa['icono']} {proyecto.probabilidad_cierre}%
+                        </span>
+                    </div>
+                    <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
+                    <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}</p>
+                    <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente.nombre if proyecto.cliente else 'Sin cliente'}</p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
+                    <p style="margin: 4px 0; font-size: 11px; color: {estado_preventa['color']};">{deadline_html}</p>
+                    <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Información principal del proyecto
-                st.markdown(f"### {proyecto.codigo_proyecto}")
-                st.markdown(f"**{proyecto.nombre}**")
-                st.markdown(f"*{proyecto.cliente.nombre}*")
-
-                # Valor estimado
-                st.markdown(f"**Valor:** {formatear_moneda(valor_visualizacion, moneda_visualizacion)}")
-
-                # Información de asignación
-                st.markdown(f"**Asignado a:** {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}")
-
-                # Deadline solo si es relevante
-                if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta:
-                    dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
-                    fecha_formateada = proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M')
-                    
-                    st.markdown(f"""
-                    <div style='background-color:{estilo_deadline['fondo']}; 
-                                padding:10px; border-radius:5px; margin:10px 0; 
-                                border-left:3px solid {estilo_deadline['color']}'>
-                        <div style='display:flex; align-items:center;'>
-                            <span style='font-size:1.2em; margin-right:10px;'>{estilo_deadline['icono']}</span>
-                            <div>
-                                <strong style='color:{estilo_deadline['color']}'>Deadline</strong><br>
-                                {fecha_formateada}<br>
-                                <small>{dias_restantes} días restantes</small>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                elif proyecto.fecha_presentacion_cotizacion:
-                    st.success(f"✅ Propuesta presentada: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y')}")
-
-                # Historial reciente
-                historial = cargar_historial_proyecto(proyecto.id)
-                if historial:
-                    with st.expander("📋 Historial reciente"):
-                        for evento in historial:
-                            fecha_evento = evento[0].strftime('%d/%m/%Y %H:%M') if hasattr(evento[0], 'strftime') else str(evento[0])
-                            st.markdown(f"`{fecha_evento}` - {evento[1]}")
-
-                # Botones de acción según sub-estado
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                # Botones de acción (igual que antes)
+                col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
                 with col_btn1:
                     if st.button("✏️", key=f"edit_{proyecto.id}", help="Editar preventa"):
@@ -1072,7 +1063,15 @@ elif vista_modo == "Tarjetas":
                             st.session_state.editing_project = proyecto.id
                             st.rerun()
 
-                st.markdown("---")
+                with col_btn4:
+                    if st.button("🗑️", key=f"delete_{proyecto.id}", help="Eliminar preventa"):
+                        try:
+                            eliminar_proyecto_soft_orm(proyecto.id)
+                            st.success("🗑️ Preventa eliminada!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
 
 # ==============================
 # VISTA DE TABLA
