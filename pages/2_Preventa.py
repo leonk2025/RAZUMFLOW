@@ -18,15 +18,12 @@ from sqlalchemy.orm import joinedload
 st.set_page_config(page_title="Dashboard de Preventa", layout="wide", page_icon="📊")
 
 # ==============================
-# FUNCIONES PARA GESTIÓN DE ARCHIVOS (COPIADAS DE OPORTUNIDADES)
+# FUNCIONES PARA GESTIÓN DE ARCHIVOS
 # ==============================
 def sanitizar_nombre(texto):
     """Sanitiza nombres para usar en filesystem"""
-    # Remover caracteres inválidos
     texto = re.sub(r'[<>:"/\\|?*]', '', texto)
-    # Reemplazar espacios por guiones bajos
     texto = texto.replace(' ', '_')
-    # Convertir a MAYÚSCULAS y remover tildes
     texto = texto.upper()
     texto = texto.replace('Á', 'A').replace('É', 'E').replace('Í', 'I')
     texto = texto.replace('Ó', 'O').replace('Ú', 'U').replace('Ñ', 'N')
@@ -34,15 +31,12 @@ def sanitizar_nombre(texto):
 
 def sanitizar_nombre_archivo(nombre_archivo):
     """Sanitiza nombres de archivos para filesystem"""
-    # Separar nombre y extensión
     nombre, extension = os.path.splitext(nombre_archivo)
-    # Sanitizar nombre
     nombre = re.sub(r'[<>:"/\\|?*]', '', nombre)
     nombre = nombre.replace(' ', '_')
     nombre = nombre.lower()
     nombre = nombre.replace('á', 'a').replace('é', 'e').replace('í', 'i')
     nombre = nombre.replace('ó', 'o').replace('ú', 'u').replace('ñ', 'n')
-    # Devolver en minúsculas
     return f"{nombre}{extension.lower()}"
 
 def obtener_ruta_proyecto(proyecto_id):
@@ -75,16 +69,17 @@ def verificar_archivo_duplicado(proyecto_id, tipo_archivo, nombre_archivo):
     
     return os.path.exists(ruta_completa), nombre_final, ruta_completa
 
-def obtener_ultimo_tdr(proyecto_id):
-    """Obtiene el último TDR subido para un proyecto"""
+def obtener_ultima_oc(proyecto_id):
+    """Obtiene la última Orden de Compra subida para un proyecto"""
     db = SessionLocal()
     try:
-        tdr = db.query(ProyectoArchivos).filter(
+        # Buscar archivos de tipo OC (asumiendo que el ID para OC es 2)
+        oc = db.query(ProyectoArchivos).filter(
             ProyectoArchivos.proyecto_id == proyecto_id,
-            ProyectoArchivos.tipo_archivo_id == 1  # ID para TDR
+            ProyectoArchivos.tipo_archivo_id == 2  # ID para OC
         ).order_by(ProyectoArchivos.fecha_subida.desc()).first()
         
-        return tdr
+        return oc
     finally:
         db.close()
 
@@ -106,28 +101,22 @@ def subir_archivo_proyecto(proyecto_id, tipo_archivo_id, archivo, usuario_id):
     """Sube un archivo al proyecto"""
     db = SessionLocal()
     try:
-        # Obtener información del tipo de archivo
         tipo_archivo = db.query(TiposArchivo).filter(TiposArchivo.id == tipo_archivo_id).first()
         if not tipo_archivo:
             raise ValueError("Tipo de archivo no válido")
         
-        # Obtener ruta del proyecto
         ruta_base = obtener_ruta_proyecto(proyecto_id)
         os.makedirs(ruta_base, exist_ok=True)
         
-        # Sanitizar nombre del archivo
         nombre_sanitizado = f"{tipo_archivo.nombre}_{sanitizar_nombre_archivo(archivo.name)}"
         ruta_completa = os.path.join(ruta_base, nombre_sanitizado)
         
-        # Verificar duplicados
         if os.path.exists(ruta_completa):
             raise FileExistsError(f"Ya existe un archivo con el nombre: {nombre_sanitizado}")
         
-        # Guardar archivo en filesystem
         with open(ruta_completa, "wb") as f:
-            f.write(archio.getvalue())
+            f.write(archivo.getvalue())
         
-        # Registrar en BD
         nuevo_archivo = ProyectoArchivos(
             proyecto_id=proyecto_id,
             tipo_archivo_id=tipo_archivo_id,
@@ -162,7 +151,6 @@ def cargar_proyectos_activos():
         db = SessionLocal()
         proyectos = db.query(Proyecto).filter(Proyecto.activo == True).all()
 
-        # Cargar relaciones para evitar lazy loading
         for proyecto in proyectos:
             _ = proyecto.cliente
             _ = proyecto.asignado_a
@@ -197,7 +185,6 @@ def actualizar_proyecto_orm(proyecto_id, datos_actualizados):
         if not proyecto:
             raise ValueError("Proyecto no encontrado")
 
-        # Actualizar campos
         proyecto.nombre = datos_actualizados['nombre']
         proyecto.descripcion = datos_actualizados['descripcion']
         proyecto.valor_estimado = datos_actualizados['valor_estimado']
@@ -209,7 +196,6 @@ def actualizar_proyecto_orm(proyecto_id, datos_actualizados):
         proyecto.codigo_convocatoria = datos_actualizados.get('codigo_convocatoria')
         proyecto.fecha_ultima_actualizacion = datetime.now()
 
-        # Agregar evento al historial
         proyecto.agregar_evento_historial(f"Editado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
         db.commit()
@@ -258,14 +244,40 @@ def registrar_contacto_orm(proyecto_id):
         db.rollback()
         raise e
 
-def mover_a_propuesta_orm(proyecto_id):
-    """Mueve proyecto a propuesta usando ORM"""
+def marcar_propuesta_presentada_orm(proyecto_id):
+    """Marca la propuesta como presentada y actualiza probabilidad al 50%"""
     try:
         db = SessionLocal()
 
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
-            proyecto.mover_a_estado(Estado.PROPUESTA)
+            proyecto.fecha_presentacion_cotizacion = datetime.now()
+            proyecto.probabilidad_cierre = 50
+            proyecto.agregar_evento_historial("✅ Propuesta presentada al cliente - Probabilidad 50%")
+            proyecto.fecha_ultima_actualizacion = datetime.now()
+
+            db.commit()
+
+        db.close()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def subir_orden_compra_orm(proyecto_id, usuario_id):
+    """Sube orden de compra y avanza automáticamente a DELIVERY si es exitoso"""
+    try:
+        db = SessionLocal()
+
+        proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+        if proyecto:
+            proyecto.probabilidad_cierre = 75
+            proyecto.agregar_evento_historial("🎉 Orden de Compra recibida - Probabilidad 75%")
+            proyecto.fecha_ultima_actualizacion = datetime.now()
+            
+            # Auto-avance a DELIVERY
+            proyecto.mover_a_estado(Estado.DELIVERY, usuario_id)
+            
             db.commit()
 
         db.close()
@@ -330,7 +342,7 @@ def formatear_moneda(valor, moneda):
         return f"$ {valor:,.2f}"
 
 # ==============================
-# Funciones para deadlines y criticidad (COPIADAS DE OPORTUNIDADES)
+# Funciones para deadlines y criticidad
 # ==============================
 def obtener_estilo_deadline(nivel_alerta):
     """Devuelve estilo CSS según el nivel de alerta del deadline"""
@@ -347,6 +359,10 @@ def obtener_estilo_deadline(nivel_alerta):
 
 def calcular_criticidad_deadline(proyecto):
     """Calcula la criticidad basada en el deadline"""
+    # Si ya se presentó propuesta, el deadline ya no es relevante
+    if proyecto.fecha_presentacion_cotizacion:
+        return 'propuesta_presentada'
+    
     if not proyecto.fecha_deadline_propuesta:
         return 'sin_deadline'
 
@@ -383,19 +399,25 @@ def get_estado_riesgo(dias_sin_actualizar):
     else:
         return "Normal"
 
+def obtener_estado_preventa(proyecto):
+    """Determina el sub-estado de preventa basado en probabilidad_cierre"""
+    if proyecto.probabilidad_cierre >= 75:
+        return {'nombre': '🎉 OC FIRMADA', 'color': '#16a34a', 'icono': '🎉'}
+    elif proyecto.probabilidad_cierre >= 50:
+        return {'nombre': '📤 PROPUESTA ENTREGADA', 'color': '#3b82f6', 'icono': '📤'}
+    else:
+        return {'nombre': '📋 PREVENTA ACTIVA', 'color': '#f59e0b', 'icono': '📋'}
+
 # ==============================
 # Inicialización
 # ==============================
-# Listas de opciones (ahora se cargan desde la BD)
 EJECUTIVOS_DISPONIBLES = []
 CLIENTES_DISPONIBLES = []
 MONEDAS_DISPONIBLES = ['PEN', 'USD']
 
-# Session state para edición
 if 'editing_project' not in st.session_state:
     st.session_state.editing_project = None
 
-# Session state para modales de archivos
 if 'modal_archivos_abierto' not in st.session_state:
     st.session_state.modal_archivos_abierto = False
 if 'proyecto_archivos' not in st.session_state:
@@ -418,26 +440,22 @@ usuarios_db = cargar_usuarios_activos()
 clientes_db = cargar_clientes_activos()
 contactos_db = cargar_contactos_activos()
 
-# Actualizar listas de opciones
 EJECUTIVOS_DISPONIBLES = [u.nombre for u in usuarios_db]
 CLIENTES_DISPONIBLES = [c.nombre for c in clientes_db]
 
-# Mapeos para IDs
 usuario_nombre_a_id = {u.nombre: u.id for u in usuarios_db}
 cliente_nombre_a_id = {c.nombre: c.id for c in clientes_db}
 
-# Cargar tipos de archivo
 tipos_archivo_db = obtener_tipos_archivo()
 
 # ==============================
-# MODAL PARA GESTIÓN DE ARCHIVOS (COPIADO DE OPORTUNIDADES)
+# MODAL PARA GESTIÓN DE ARCHIVOS
 # ==============================
 if st.session_state.modal_archivos_abierto and st.session_state.proyecto_archivos:
     with st.sidebar:
         st.header("📁 Gestión de Archivos")
         st.write(f"Proyecto: **{st.session_state.proyecto_archivos.codigo_proyecto}**")
         
-        # Subir nuevo archivo
         with st.expander("📤 Subir nuevo archivo", expanded=True):
             archivo_subir = st.file_uploader("Seleccionar archivo", type=['pdf', 'docx', 'xlsx', 'jpg', 'png'])
             tipo_seleccionado = st.selectbox("Tipo de archivo", 
@@ -450,7 +468,7 @@ if st.session_state.modal_archivos_abierto and st.session_state.proyecto_archivo
                         st.session_state.proyecto_archivos.id,
                         tipo_seleccionado[0],
                         archivo_subir,
-                        1  # ID del usuario actual (deberías obtenerlo de session)
+                        1  # ID del usuario actual
                     )
                     st.success("✅ Archivo subido correctamente")
                     time.sleep(1)
@@ -460,7 +478,6 @@ if st.session_state.modal_archivos_abierto and st.session_state.proyecto_archivo
                 except Exception as e:
                     st.error(f"❌ Error al subir archivo: {str(e)}")
         
-        # Listar archivos existentes
         st.divider()
         st.subheader("Archivos del proyecto")
         archivos = obtener_archivos_proyecto(st.session_state.proyecto_archivos.id)
@@ -503,7 +520,25 @@ with st.sidebar:
     filtro_cliente = st.selectbox("Cliente", ["Todos"] + CLIENTES_DISPONIBLES)
     filtro_moneda = st.selectbox("Moneda", ["Todas"] + MONEDAS_DISPONIBLES)
     filtro_riesgo = st.selectbox("Estado de Riesgo", ["Todos", "Normal", "En Riesgo", "Crítico"])
-    filtro_deadline = st.selectbox("Estado Deadline", ["Todos", "Vencido", "Crítico", "Urgente", "Por Vencer", "Disponible", "Sin Deadline"])
+    
+    # Filtro por sub-estado de preventa
+    filtro_subestado = st.selectbox("Estado Preventa", [
+        "Todos", 
+        "📋 PREVENTA ACTIVA (25%)", 
+        "📤 PROPUESTA ENTREGADA (50%)", 
+        "🎉 OC FIRMADA (75%)"
+    ])
+    
+    filtro_deadline = st.selectbox("Estado Deadline", [
+        "Todos", 
+        "Vencido", 
+        "Crítico", 
+        "Urgente", 
+        "Por Vencer", 
+        "Disponible", 
+        "Sin Deadline",
+        "✅ Propuesta Presentada"
+    ])
 
     st.divider()
     st.header("📈 Estadísticas Rápidas")
@@ -536,8 +571,9 @@ if proyectos_preventa:
     with col1:
         valor_pipeline = 0
         for p in proyectos_preventa:
+            # Valor ponderado por probabilidad
             valor_convertido = convertir_moneda(
-                p.valor_estimado * 0.50,  # 50% de probabilidad en preventa
+                p.valor_estimado * (p.probabilidad_cierre / 100),
                 p.moneda,
                 moneda_visualizacion,
                 p.tipo_cambio_historico
@@ -560,17 +596,25 @@ if proyectos_preventa:
         st.metric("💸 Valor Total Estimado", formatear_moneda(total_valor, moneda_visualizacion))
 
     with col3:
-        avg_valor = total_valor / len(proyectos_preventa) if proyectos_preventa else 0
-        st.metric("📊 Valor Promedio", formatear_moneda(avg_valor, moneda_visualizacion))
+        # Contar proyectos por sub-estado
+        preventa_activa = len([p for p in proyectos_preventa if p.probabilidad_cierre == 25])
+        propuesta_entregada = len([p for p in proyectos_preventa if p.probabilidad_cierre == 50])
+        oc_firmada = len([p for p in proyectos_preventa if p.probabilidad_cierre >= 75])
+        
+        st.metric("📋 Preventa Activa", preventa_activa)
+        st.metric("📤 Propuesta Entregada", propuesta_entregada)
+        st.metric("🎉 OC Firmada", oc_firmada)
 
     with col4:
-        # Contar preventas con deadline vencido
+        # Contar preventas con deadline vencido (solo las que están en preventa activa)
         preventas_vencidas = len([p for p in proyectos_preventa
-                                if p.fecha_deadline_propuesta and p.fecha_deadline_propuesta < datetime.now()])
+                                if p.fecha_deadline_propuesta and 
+                                p.fecha_deadline_propuesta < datetime.now() and
+                                p.probabilidad_cierre < 50])
         st.metric("⏰ Deadlines Vencidos", preventas_vencidas)
 
 # ==============================
-# Formulario de Edición (COPIADO DE OPORTUNIDADES)
+# Formulario de Edición
 # ==============================
 if st.session_state.editing_project is not None:
     proyecto_editar = next((p for p in proyectos_preventa if p.id == st.session_state.editing_project), None)
@@ -579,34 +623,42 @@ if st.session_state.editing_project is not None:
         st.markdown("---")
         with st.expander("✏️ Editando Preventa", expanded=True):
             st.info(f"📝 Editando: **{proyecto_editar.codigo_proyecto}** - {proyecto_editar.nombre}")
+            
+            # Mostrar estado actual de preventa
+            estado_preventa = obtener_estado_preventa(proyecto_editar)
+            st.markdown(f"""
+            <div style='background-color:{estado_preventa['color']}20; padding:10px; border-radius:5px; border-left:4px solid {estado_preventa['color']}'>
+                <strong>{estado_preventa['icono']} {estado_preventa['nombre']}</strong><br>
+                <small>Probabilidad de cierre: {proyecto_editar.probabilidad_cierre}%</small>
+            </div>
+            """, unsafe_allow_html=True)
 
-            # Obtener último TDR para mostrar
-            ultimo_tdr = obtener_ultimo_tdr(proyecto_editar.id)
+            # Obtener última OC para mostrar
+            ultima_oc = obtener_ultima_oc(proyecto_editar.id)
             
-            # Visualización de último TDR
-            st.subheader("📎 Documentos TDR")
+            st.subheader("📎 Orden de Compra")
             
-            if ultimo_tdr:
-                col_tdr1, col_tdr2, col_tdr3 = st.columns([3, 1, 1])
-                with col_tdr1:
-                    st.info(f"**Último TDR:** {ultimo_tdr.nombre_archivo}")
-                    st.caption(f"Subido el: {ultimo_tdr.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+            if ultima_oc:
+                col_oc1, col_oc2, col_oc3 = st.columns([3, 1, 1])
+                with col_oc1:
+                    st.success(f"**Última OC:** {ultima_oc.nombre_archivo}")
+                    st.caption(f"Subido el: {ultima_oc.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
                 
-                with col_tdr2:
-                    if os.path.exists(ultimo_tdr.ruta_archivo):
-                        with open(ultimo_tdr.ruta_archivo, "rb") as f:
+                with col_oc2:
+                    if os.path.exists(ultima_oc.ruta_archivo):
+                        with open(ultima_oc.ruta_archivo, "rb") as f:
                             st.download_button(
                                 "⬇️ Descargar",
                                 f.read(),
-                                ultimo_tdr.nombre_archivo,
-                                key="download_tdr"
+                                ultima_oc.nombre_archivo,
+                                key="download_oc"
                             )
                 
-                with col_tdr3:
-                    if st.button("🗑️", help="Eliminar TDR"):
+                with col_oc3:
+                    if st.button("🗑️", help="Eliminar OC", key="eliminar_oc"):
                         st.warning("Funcionalidad de eliminación pendiente")
             else:
-                st.info("📝 No hay TDR subidos para este proyecto")
+                st.info("📝 No hay OC subida para este proyecto")
             
             # Botón para ver todos los archivos
             if st.button("👁️ Ver todos los archivos", key="ver_archivos"):
@@ -636,23 +688,25 @@ if st.session_state.editing_project is not None:
                     nuevo_valor = st.number_input("Valor Estimado", value=int(proyecto_editar.valor_estimado), step=1000)
 
                 with col3:
-                    # Fecha deadline - editable para preventa
-                    col_fecha, col_hora = st.columns(2)
+                    # Solo mostrar deadline si no se ha presentado propuesta
+                    if proyecto_editar.probabilidad_cierre < 50:
+                        col_fecha, col_hora = st.columns(2)
+                        fecha_actual = proyecto_editar.fecha_deadline_propuesta if proyecto_editar.fecha_deadline_propuesta else datetime.now()
 
-                    fecha_actual = proyecto_editar.fecha_deadline_propuesta if proyecto_editar.fecha_deadline_propuesta else datetime.now()
-
-                    with col_fecha:
-                        nueva_fecha_deadline = st.date_input(
-                            "Fecha Deadline",
-                            value=proyecto_editar.fecha_deadline_propuesta.date() if proyecto_editar.fecha_deadline_propuesta else datetime.now().date(),
-                            format="DD/MM/YYYY"
-                        )
-                    with col_hora:
-                        nueva_hora_deadline = st.time_input(
-                        "Hora Deadline",
-                        value=fecha_actual.time(),
-                        step=3600  # Incrementos de 1 hora
-                        )
+                        with col_fecha:
+                            nueva_fecha_deadline = st.date_input(
+                                "Fecha Deadline",
+                                value=proyecto_editar.fecha_deadline_propuesta.date() if proyecto_editar.fecha_deadline_propuesta else datetime.now().date(),
+                                format="DD/MM/YYYY"
+                            )
+                        with col_hora:
+                            nueva_hora_deadline = st.time_input(
+                            "Hora Deadline",
+                            value=fecha_actual.time(),
+                            step=3600
+                            )
+                    else:
+                        st.info("✅ Propuesta ya presentada - Deadline completado")
 
                     nuevo_tipo_cambio = st.number_input("Tipo de Cambio",
                                                        value=float(proyecto_editar.tipo_cambio_historico),
@@ -661,27 +715,25 @@ if st.session_state.editing_project is not None:
                     nuevo_codigo_conv = st.text_input("Código Convocatoria",
                                                      value=proyecto_editar.codigo_convocatoria or "")
 
-                # Subir nuevo archivo en edición
+                # Subir nueva OC
                 st.markdown("---")
-                st.subheader("📤 Subir nuevo documento")
+                st.subheader("📤 Subir Orden de Compra")
                 
                 col_archivo1, col_archivo2 = st.columns([3, 1])
                 with col_archivo1:
-                    nuevo_archivo = st.file_uploader("Seleccionar archivo", type=['pdf', 'docx', 'xlsx'], key="nuevo_archivo")
+                    nueva_oc = st.file_uploader("Seleccionar OC", type=['pdf', 'docx', 'xlsx'], key="nueva_oc")
                 with col_archivo2:
-                    nuevo_tipo_archivo = st.selectbox("Tipo", options=[t.nombre for t in tipos_archivo_db], key="nuevo_tipo")
+                    st.selectbox("Tipo", options=["Orden de Compra"], disabled=True, key="tipo_oc")
                 
-                if nuevo_archivo:
-                    # Verificar duplicados
+                if nueva_oc:
                     duplicado, nombre_final, ruta_completa = verificar_archivo_duplicado(
-                        proyecto_editar.id, nuevo_tipo_archivo, nuevo_archivo.name
+                        proyecto_editar.id, "OC", nueva_oc.name
                     )
                     
                     if duplicado:
                         st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final}")
-                        st.info("Por favor, cambie el nombre del archivo antes de subirlo")
                     else:
-                        st.success(f"✅ Archivo listo para subir: {nombre_final}")
+                        st.success(f"✅ OC lista para subir: {nombre_final}")
 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -691,7 +743,6 @@ if st.session_state.editing_project is not None:
 
                 if guardar:
                     try:
-                        # Convertir nombres a IDs
                         cliente_id = cliente_nombre_a_id[nuevo_cliente_nombre]
                         asignado_a_id = usuario_nombre_a_id[nuevo_ejecutivo_nombre]
 
@@ -703,28 +754,31 @@ if st.session_state.editing_project is not None:
                             'tipo_cambio': nuevo_tipo_cambio,
                             'cliente_id': cliente_id,
                             'asignado_a_id': asignado_a_id,
-                            'fecha_deadline': datetime.combine(nueva_fecha_deadline, nueva_hora_deadline) if nueva_fecha_deadline else None,
+                            'fecha_deadline': datetime.combine(nueva_fecha_deadline, nueva_hora_deadline) if proyecto_editar.probabilidad_cierre < 50 and nueva_fecha_deadline else proyecto_editar.fecha_deadline_propuesta,
                             'codigo_convocatoria': nuevo_codigo_conv or None
                         }
 
-                        # Subir nuevo archivo si se proporcionó y no hay duplicados
-                        if nuevo_archivo and not duplicado:
+                        # Subir OC si se proporcionó
+                        if nueva_oc and not duplicado:
                             try:
-                                tipo_archivo_id = next((t.id for t in tipos_archivo_db if t.nombre == nuevo_tipo_archivo), 1)
+                                tipo_archivo_id = 2  # ID para OC
                                 subir_archivo_proyecto(
                                     proyecto_editar.id,
                                     tipo_archivo_id,
-                                    nuevo_archivo,
+                                    nueva_oc,
                                     1  # ID del usuario actual
                                 )
+                                # Auto-avance a DELIVERY
+                                subir_orden_compra_orm(proyecto_editar.id, 1)
+                                st.success("🎉 ¡OC subida y proyecto movido a DELIVERY!")
                             except Exception as e:
-                                st.warning(f"⚠️ Cambios guardados, pero error al subir archivo: {str(e)}")
+                                st.warning(f"⚠️ Cambios guardados, pero error al subir OC: {str(e)}")
 
                         actualizar_proyecto_orm(proyecto_editar.id, datos_actualizados)
 
                         st.session_state.editing_project = None
                         st.success("✅ Cambios guardados exitosamente!")
-                        time.sleep(3)
+                        time.sleep(2)
                         st.rerun()
 
                     except Exception as e:
@@ -732,7 +786,6 @@ if st.session_state.editing_project is not None:
 
                 if cancelar:
                     st.session_state.editing_project = None
-                    time.sleep(3)
                     st.rerun()
 
 # ==============================
@@ -753,8 +806,19 @@ if filtro_riesgo != "Todos":
     proyectos_filtrados = [p for p in proyectos_filtrados
                           if get_estado_riesgo((datetime.now() - p.fecha_ultima_actualizacion).days) == filtro_riesgo]
 
+if filtro_subestado != "Todos":
+    if filtro_subestado == "📋 PREVENTA ACTIVA (25%)":
+        proyectos_filtrados = [p for p in proyectos_filtrados if p.probabilidad_cierre == 25]
+    elif filtro_subestado == "📤 PROPUESTA ENTREGADA (50%)":
+        proyectos_filtrados = [p for p in proyectos_filtrados if p.probabilidad_cierre == 50]
+    elif filtro_subestado == "🎉 OC FIRMADA (75%)":
+        proyectos_filtrados = [p for p in proyectos_filtrados if p.probabilidad_cierre >= 75]
+
 if filtro_deadline != "Todos":
-    proyectos_filtrados = [p for p in proyectos_filtrados
+    if filtro_deadline == "✅ Propuesta Presentada":
+        proyectos_filtrados = [p for p in proyectos_filtrados if p.fecha_presentacion_cotizacion is not None]
+    else:
+        proyectos_filtrados = [p for p in proyectos_filtrados
                           if calcular_criticidad_deadline(p) == filtro_deadline.lower().replace(' ', '_')]
 
 # ==============================
@@ -765,12 +829,9 @@ st.header(f"📋 Lista de Preventas ({len(proyectos_filtrados)} encontradas)")
 
 if not proyectos_filtrados:
     st.info("🔍 No hay preventas que coincidan con los filtros aplicados.")
-    st.markdown("**Sugerencias:**")
-    st.markdown("- Cambia los filtros en el sidebar")
-    st.markdown("- Revisa si hay proyectos en estado Oportunidad que puedan moverse a Preventa")
 
 # ==============================
-# VISTA DE TARJETAS (COPIADO DE OPORTUNIDADES)
+# VISTA DE TARJETAS
 # ==============================
 elif vista_modo == "Tarjetas":
     cols = st.columns(3)
@@ -780,7 +841,8 @@ elif vista_modo == "Tarjetas":
         color_riesgo = get_color_riesgo(dias_sin_actualizar)
         estado_riesgo = get_estado_riesgo(dias_sin_actualizar)
 
-        # Calcular criticidad del deadline
+        # Obtener sub-estado de preventa
+        estado_preventa = obtener_estado_preventa(proyecto)
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
         estilo_deadline = obtener_estilo_deadline(criticidad_deadline)
 
@@ -794,14 +856,14 @@ elif vista_modo == "Tarjetas":
 
         with cols[i % 3]:
             with st.container():
-                # Header con información crítica
+                # Header con información de sub-estado
                 st.markdown(f"""
                 <div style='border-radius:10px; padding:15px; margin-bottom:15px; 
-                            background-color:{color_riesgo}20; border-left:5px solid {color_riesgo}'>
-                    <h4 style='margin:0; color:{color_riesgo}'>{estado_riesgo}</h4>
+                            background-color:{estado_preventa['color']}20; border-left:5px solid {estado_preventa['color']}'>
+                    <h4 style='margin:0; color:{estado_preventa['color']}'>{estado_preventa['icono']} {estado_preventa['nombre']}</h4>
                     <p style='margin:0; font-size:0.8em; color:#666'>
+                        Probabilidad: {proyecto.probabilidad_cierre}% | 
                         Últ. actualización: {proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y')}
-                        ({dias_sin_actualizar} días)
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -817,8 +879,8 @@ elif vista_modo == "Tarjetas":
                 # Información de asignación
                 st.markdown(f"**Asignado a:** {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}")
 
-                # Deadline con criticidad visual
-                if proyecto.fecha_deadline_propuesta:
+                # Deadline solo si es relevante
+                if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta:
                     dias_restantes = (proyecto.fecha_deadline_propuesta - datetime.now()).days
                     fecha_formateada = proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M')
                     
@@ -836,8 +898,8 @@ elif vista_modo == "Tarjetas":
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                else:
-                    st.info("📌 Sin deadline definido")
+                elif proyecto.fecha_presentacion_cotizacion:
+                    st.success(f"✅ Propuesta presentada: {proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y')}")
 
                 # Historial reciente
                 historial = cargar_historial_proyecto(proyecto.id)
@@ -847,7 +909,7 @@ elif vista_modo == "Tarjetas":
                             fecha_evento = evento[0].strftime('%d/%m/%Y %H:%M') if hasattr(evento[0], 'strftime') else str(evento[0])
                             st.markdown(f"`{fecha_evento}` - {evento[1]}")
 
-                # Botones de acción
+                # Botones de acción según sub-estado
                 col_btn1, col_btn2, col_btn3 = st.columns(3)
 
                 with col_btn1:
@@ -863,22 +925,27 @@ elif vista_modo == "Tarjetas":
                         st.rerun()
 
                 with col_btn3:
-                    if st.button("➡️", key=f"move_{proyecto.id}", help="Mover a Propuesta"):
-                        if mover_a_propuesta_orm(proyecto.id):
-                            st.success("✅ Movido a Propuesta exitosamente!")
-                            time.sleep(2)
+                    if proyecto.probabilidad_cierre == 25:
+                        if st.button("📤", key=f"propuesta_{proyecto.id}", help="Marcar propuesta presentada"):
+                            if marcar_propuesta_presentada_orm(proyecto.id):
+                                st.success("✅ Propuesta marcada como presentada!")
+                                time.sleep(2)
+                                st.rerun()
+                    elif proyecto.probabilidad_cierre == 50:
+                        if st.button("🎉", key=f"oc_{proyecto.id}", help="Subir Orden de Compra"):
+                            st.session_state.editing_project = proyecto.id
                             st.rerun()
 
                 st.markdown("---")
 
 # ==============================
-# VISTA DE TABLA (COPIADO DE OPORTUNIDADES)
+# VISTA DE TABLA
 # ==============================
 elif vista_modo == "Tabla":
-    # Preparar datos para la tabla
     datos_tabla = []
     for proyecto in proyectos_filtrados:
         dias_sin_actualizar = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
+        estado_preventa = obtener_estado_preventa(proyecto)
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
         estilo_deadline = obtener_estilo_deadline(criticidad_deadline)
 
@@ -895,32 +962,31 @@ elif vista_modo == "Tabla":
             'Cliente': proyecto.cliente.nombre,
             'Valor': formatear_moneda(valor_visualizacion, moneda_visualizacion),
             'Asignado': proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar',
-            'Deadline': proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M') if proyecto.fecha_deadline_propuesta else 'Sin definir',
-            'Criticidad': estilo_deadline['icono'],
+            'Estado': estado_preventa['nombre'],
+            'Probabilidad': f"{proyecto.probabilidad_cierre}%",
+            'Deadline': proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M') if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta else 'N/A',
+            'Propuesta': proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y') if proyecto.fecha_presentacion_cotizacion else 'Pendiente',
             'Últ. Actualización': proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y'),
             'Días sin actualizar': dias_sin_actualizar,
             'ID': proyecto.id
         })
 
-    # Mostrar tabla
     df = pd.DataFrame(datos_tabla)
     st.dataframe(
         df,
         column_config={
-            "Criticidad": st.column_config.TextColumn("Estado", help="Icono de criticidad del deadline"),
-            "ID": None  # Ocultar columna ID
+            "ID": None
         },
         hide_index=True,
         use_container_width=True
     )
 
 # ==============================
-# VISTA DE TIMELINE (NUEVA IMPLEMENTACIÓN)
+# VISTA DE TIMELINE
 # ==============================
 elif vista_modo == "Timeline":
-    st.markdown("### 📅 Vista de Timeline con Deadlines")
+    st.markdown("### 📅 Vista de Timeline")
     
-    # Ordenar proyectos por deadline (los que no tienen deadline van al final)
     proyectos_ordenados = sorted(
         proyectos_filtrados,
         key=lambda x: (x.fecha_deadline_propuesta is None, x.fecha_deadline_propuesta or datetime.max)
@@ -931,11 +997,10 @@ elif vista_modo == "Timeline":
         color_riesgo = get_color_riesgo(dias_sin_actualizar)
         estado_riesgo = get_estado_riesgo(dias_sin_actualizar)
         
-        # Calcular criticidad del deadline
+        estado_preventa = obtener_estado_preventa(proyecto)
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
         estilo_deadline = obtener_estilo_deadline(criticidad_deadline)
         
-        # Convertir valor a moneda de visualización
         valor_visualizacion = convertir_moneda(
             proyecto.valor_estimado,
             proyecto.moneda,
@@ -943,27 +1008,23 @@ elif vista_modo == "Timeline":
             proyecto.tipo_cambio_historico
         )
         
-        # Crear tarjeta de timeline
         with st.container():
             col1, col2 = st.columns([1, 4])
             
             with col1:
-                # Indicador visual de criticidad (barra lateral)
                 st.markdown(f"""
-                <div style='background-color:{estilo_deadline['color']}; 
+                <div style='background-color:{estado_preventa['color']}; 
                             height:100px; width:10px; border-radius:5px; 
                             margin:10px 0;'></div>
                 """, unsafe_allow_html=True)
                 
-                # Icono de criticidad
-                st.markdown(f"<div style='text-align:center; font-size:1.5em;'>{estilo_deadline['icono']}</div>", 
+                st.markdown(f"<div style='text-align:center; font-size:1.5em;'>{estado_preventa['icono']}</div>", 
                            unsafe_allow_html=True)
             
             with col2:
-                # Información del proyecto
                 st.markdown(f"""
                 <div style='border-radius:10px; padding:15px; margin:10px 0; 
-                            background-color:#f8f9fa; border-left:3px solid {estilo_deadline['color']}'>
+                            background-color:#f8f9fa; border-left:3px solid {estado_preventa['color']}'>
                     <div style='display:flex; justify-content:space-between; align-items:center;'>
                         <h3 style='margin:0;'>{proyecto.codigo_proyecto} - {proyecto.nombre}</h3>
                         <span style='background-color:{color_riesgo}20; color:{color_riesgo}; 
@@ -977,19 +1038,17 @@ elif vista_modo == "Timeline":
                     <div style='display:flex; justify-content:space-between; margin:10px 0;'>
                         <div>
                             <strong>Valor:</strong> {formatear_moneda(valor_visualizacion, moneda_visualizacion)}<br>
-                            <strong>Asignado:</strong> {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}
+                            <strong>Asignado:</strong> {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}<br>
+                            <strong>Estado:</strong> {estado_preventa['nombre']}
                         </div>
                         
                         <div style='text-align:right;'>
-                            <strong style='color:{estilo_deadline['color']}'>Deadline</strong><br>
-                            {proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M') if proyecto.fecha_deadline_propuesta else 'Sin definir'}<br>
-                            {f"<small>{estilo_deadline['icono']} {criticidad_deadline.replace('_', ' ').title()}</small>" if proyecto.fecha_deadline_propuesta else ''}
+                            {f"<strong style='color:{estilo_deadline['color']}'>Deadline</strong><br>{proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M')}<br><small>{estilo_deadline['icono']} {criticidad_deadline.replace('_', ' ').title()}</small>" if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta else f"<strong style='color:green'>✅ Propuesta Presentada</strong><br>{proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y')}" if proyecto.fecha_presentacion_cotizacion else ""}
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Botones de acción
                 col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
                 
                 with col_btn1:
@@ -1005,10 +1064,15 @@ elif vista_modo == "Timeline":
                         st.rerun()
                 
                 with col_btn3:
-                    if st.button("➡️ Propuesta", key=f"move_tl_{proyecto.id}", use_container_width=True):
-                        if mover_a_propuesta_orm(proyecto.id):
-                            st.success("✅ Movido a Propuesta exitosamente!")
-                            time.sleep(2)
+                    if proyecto.probabilidad_cierre == 25:
+                        if st.button("📤 Propuesta", key=f"propuesta_tl_{proyecto.id}", use_container_width=True):
+                            if marcar_propuesta_presentada_orm(proyecto.id):
+                                st.success("✅ Propuesta marcada como presentada!")
+                                time.sleep(2)
+                                st.rerun()
+                    elif proyecto.probabilidad_cierre == 50:
+                        if st.button("🎉 OC", key=f"oc_tl_{proyecto.id}", use_container_width=True):
+                            st.session_state.editing_project = proyecto.id
                             st.rerun()
                 
                 with col_btn4:
@@ -1020,7 +1084,7 @@ elif vista_modo == "Timeline":
             st.markdown("---")
 
 # ==============================
-# Footer y estadísticas
+# Footer
 # ==============================
 st.markdown("---")
 st.caption(f"📊 Dashboard de Preventa - Actualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
