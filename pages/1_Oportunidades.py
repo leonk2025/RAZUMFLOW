@@ -759,11 +759,23 @@ if st.session_state.editing_project is not None:
 
                 with col3:
                     # Fecha deadline - editable para oportunidades
-                    nueva_fecha_deadline = st.date_input(
-                        "Fecha Deadline",
-                        value=proyecto_editar.fecha_deadline_propuesta.date() if proyecto_editar.fecha_deadline_propuesta else datetime.now().date(),
-                        format="DD/MM/YYYY"
-                    )
+                    col_fecha, col_hora = st.columns(2)
+
+                    fecha_actual = proyecto_editar.fecha_deadline_propuesta if proyecto_editar.fecha_deadline_propuesta else datetime.now()
+
+                    with col_fecha:
+                        nueva_fecha_deadline = st.date_input(
+                            "Fecha Deadline",
+                            value=proyecto_editar.fecha_deadline_propuesta.date() if proyecto_editar.fecha_deadline_propuesta else datetime.now().date(),
+                            format="DD/MM/YYYY"
+                        )
+                    with col_hora:
+                        nueva_hora_deadline = st.time_input(
+                        "Hora Deadline",
+                        value=fecha_actual.time(),
+                        step=3600  # Incrementos de 1 hora
+                        )
+
                     nuevo_tipo_cambio = st.number_input("Tipo de Cambio",
                                                        value=float(proyecto_editar.tipo_cambio_historico),
                                                        step=0.01,
@@ -813,7 +825,8 @@ if st.session_state.editing_project is not None:
                             'tipo_cambio': nuevo_tipo_cambio,
                             'cliente_id': cliente_id,
                             'asignado_a_id': asignado_a_id,
-                            'fecha_deadline': datetime.combine(nueva_fecha_deadline, datetime.min.time()) if nueva_fecha_deadline else None,
+                            #'fecha_deadline': datetime.combine(nueva_fecha_deadline, datetime.min.time()) if nueva_fecha_deadline else None,
+                            'fecha_deadline': datetime.combine(nueva_fecha_deadline, nueva_hora_deadline) if nueva_fecha_deadline else None,
                             'codigo_convocatoria': nuevo_codigo_conv or None
                         }
 
@@ -990,7 +1003,8 @@ elif vista_modo == "Tarjetas":
 # ==============================
 elif vista_modo == "Tabla":
     data = []
-    for proyecto in enumerate(proyectos_filtrados):
+    #for proyecto in enumerate(proyectos_filtrados):
+    for proyecto in proyectos_filtrados:
         dias_sin_actualizar = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
         estado_riesgo = get_estado_riesgo(dias_sin_actualizar)
         criticidad_deadline = calcular_criticidad_deadline(proyecto)
