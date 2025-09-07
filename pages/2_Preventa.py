@@ -11,6 +11,7 @@ from database import SessionLocal
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.orm import joinedload
+from sqlalchemy import desc
 
 # ==============================
 # Configuración de la página
@@ -69,17 +70,26 @@ def verificar_archivo_duplicado(proyecto_id, tipo_archivo, nombre_archivo):
     
     return os.path.exists(ruta_completa), nombre_final, ruta_completa
 
-def obtener_ultima_oc(proyecto_id):
-    """Obtiene la última Orden de Compra subida para un proyecto"""
+def obtener_ultimo_archivo_por_tipo(proyecto_id, nombre_tipo_archivo):
+    """Obtiene el último archivo subido de un tipo específico para un proyecto"""
     db = SessionLocal()
     try:
-        # Buscar archivos de tipo OC (asumiendo que el ID para OC es 2)
-        oc = db.query(ProyectoArchivos).filter(
-            ProyectoArchivos.proyecto_id == proyecto_id,
-            ProyectoArchivos.tipo_archivo_id == 2  # ID para OC
-        ).order_by(ProyectoArchivos.fecha_subida.desc()).first()
+        # Buscar el tipo de archivo por nombre
+        tipo_archivo = db.query(TiposArchivo).filter(
+            TiposArchivo.nombre == nombre_tipo_archivo,
+            TiposArchivo.activo == True
+        ).first()
         
-        return oc
+        if not tipo_archivo:
+            return None
+        
+        # Obtener el último archivo de ese tipo
+        archivo = db.query(ProyectoArchivos).filter(
+            ProyectoArchivos.proyecto_id == proyecto_id,
+            ProyectoArchivos.tipo_archivo_id == tipo_archivo.id
+        ).order_by(desc(ProyectoArchivos.fecha_subida)).first()
+        
+        return archivo
     finally:
         db.close()
 
@@ -616,9 +626,6 @@ if proyectos_preventa:
 # ==============================
 # Formulario de Edición
 # ==============================
-# ==============================
-# Formulario de Edición
-# ==============================
 if st.session_state.editing_project is not None:
     proyecto_editar = next((p for p in proyectos_preventa if p.id == st.session_state.editing_project), None)
 
@@ -641,61 +648,120 @@ if st.session_state.editing_project is not None:
             </div>
             """, unsafe_allow_html=True)
 
+            # Obtener los últimos archivos por tipo
+            ultimo_tdr = obtener_ultimo_archivo_por_tipo(proyecto_editar.id, "TDR")
+            ultima_propuesta = obtener_ultimo_archivo_por_tipo(proyecto_editar.id, "PROPUESTA")
+            ultimo_contrato = obtener_ultimo_archivo_por_tipo(proyecto_editar.id, "CONTRATO")
+            
             # SECCIÓN DIFERENCIADA POR ESTADO
             if tiene_propuesta_presentada:
                 # ESTADO: PROPUESTA ENTREGADA (tiene fecha y probabilidad 50%)
                 st.success("✅ **PROPUESTA ENTREGADA** - Cumple con fecha de presentación y 50% de probabilidad")
                 
-                # Obtener última OC para mostrar
-                ultima_oc = obtener_ultima_oc(proyecto_editar.id)
-                
-                st.subheader("📎 Orden de Compra")
-                
-                if ultima_oc:
-                    col_oc1, col_oc2, col_oc3 = st.columns([3, 1, 1])
-                    with col_oc1:
-                        st.success(f"**Última OC:** {ultima_oc.nombre_archivo}")
-                        st.caption(f"Subido el: {ultima_oc.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+                # Mostrar última propuesta si existe
+                if ultima_propuesta:
+                    st.subheader("📄 Última Propuesta")
+                    col_prop1, col_prop2, col_prop3 = st.columns([3, 1, 1])
+                    with col_prop1:
+                        st.success(f"**Propuesta:** {ultima_propuesta.nombre_archivo}")
+                        st.caption(f"Subida el: {ultima_propuesta.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
                     
-                    with col_oc2:
-                        if os.path.exists(ultima_oc.ruta_archivo):
-                            with open(ultima_oc.ruta_archivo, "rb") as f:
+                    with col_prop2:
+                        if os.path.exists(ultima_propuesta.ruta_archivo):
+                            with open(ultima_propuesta.ruta_archivo, "rb") as f:
                                 st.download_button(
                                     "⬇️ Descargar",
                                     f.read(),
-                                    ultima_oc.nombre_archivo,
-                                    key="download_oc"
+                                    ultima_propuesta.nombre_archivo,
+                                    key="download_propuesta"
                                 )
                     
-                    with col_oc3:
-                        if st.button("🗑️", help="Eliminar OC", key="eliminar_oc"):
+                    with col_prop3:
+                        if st.button("🗑️", help="Eliminar Propuesta", key="eliminar_propuesta"):
                             st.warning("Funcionalidad de eliminación pendiente")
-                else:
-                    st.info("📝 No hay OC subida para este proyecto")
                 
-                # Opción para subir nueva OC
+                # Mostrar último contrato si existe
+                if ultimo_contrato:
+                    st.subheader("📝 Último Contrato")
+                    col_cont1, col_cont2, col_cont3 = st.columns([3, 1, 1])
+                    with col_cont1:
+                        st.success(f"**Contrato:** {ultimo_contrato.nombre_archivo}")
+                        st.caption(f"Subido el: {ultimo_contrato.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+                    
+                    with col_cont2:
+                        if os.path.exists(ultimo_contrato.ruta_archivo):
+                            with open(ultimo_contrato.ruta_archivo, "rb") as f:
+                                st.download_button(
+                                    "⬇️ Descargar",
+                                    f.read(),
+                                    ultimo_contrato.nombre_archivo,
+                                    key="download_contrato"
+                                )
+                    
+                    with col_cont3:
+                        if st.button("🗑️", help="Eliminar Contrato", key="eliminar_contrato"):
+                            st.warning("Funcionalidad de eliminación pendiente")
+                
+                # Opción para subir nuevo contrato
                 st.markdown("---")
-                st.subheader("📤 Subir Orden de Compra")
+                st.subheader("📤 Subir Contrato/OC")
                 
                 col_archivo1, col_archivo2 = st.columns([3, 1])
                 with col_archivo1:
-                    nueva_oc = st.file_uploader("Seleccionar OC", type=['pdf', 'docx', 'xlsx'], key="nueva_oc")
+                    nuevo_contrato = st.file_uploader("Seleccionar Contrato/OC", type=['pdf', 'docx', 'xlsx'], key="nuevo_contrato")
                 with col_archivo2:
-                    st.selectbox("Tipo", options=["Orden de Compra"], disabled=True, key="tipo_oc")
+                    st.selectbox("Tipo", options=["CONTRATO"], disabled=True, key="tipo_contrato")
                 
-                if nueva_oc:
+                if nuevo_contrato:
                     duplicado, nombre_final, ruta_completa = verificar_archivo_duplicado(
-                        proyecto_editar.id, "OC", nueva_oc.name
+                        proyecto_editar.id, "CONTRATO", nuevo_contrato.name
                     )
                     
                     if duplicado:
                         st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final}")
                     else:
-                        st.success(f"✅ OC lista para subir: {nombre_final}")
+                        st.success(f"✅ Contrato/OC listo para subir: {nombre_final}")
+                        
+                        if st.button("Subir Contrato/OC", key="subir_contrato"):
+                            try:
+                                tipo_contrato_id = next((t.id for t in tipos_archivo_db if t.nombre == "CONTRATO"), 3)
+                                subir_archivo_proyecto(
+                                    proyecto_editar.id,
+                                    tipo_contrato_id,
+                                    nuevo_contrato,
+                                    1  # ID del usuario actual
+                                )
+                                st.success("✅ Contrato/OC subido correctamente")
+                                time.sleep(2)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al subir archivo: {str(e)}")
 
             else:
                 # ESTADO: PREVENTA ACTIVA (no tiene fecha de presentación o probabilidad no es 50%)
                 st.info("📋 **PREVENTA ACTIVA** - Pendiente de presentar propuesta")
+                
+                # Mostrar último TDR si existe
+                if ultimo_tdr:
+                    st.subheader("📋 Último TDR")
+                    col_tdr1, col_tdr2, col_tdr3 = st.columns([3, 1, 1])
+                    with col_tdr1:
+                        st.info(f"**TDR:** {ultimo_tdr.nombre_archivo}")
+                        st.caption(f"Subido el: {ultimo_tdr.fecha_subida.strftime('%d/%m/%Y %H:%M')}")
+                    
+                    with col_tdr2:
+                        if os.path.exists(ultimo_tdr.ruta_archivo):
+                            with open(ultimo_tdr.ruta_archivo, "rb") as f:
+                                st.download_button(
+                                    "⬇️ Descargar",
+                                    f.read(),
+                                    ultimo_tdr.nombre_archivo,
+                                    key="download_tdr"
+                                )
+                    
+                    with col_tdr3:
+                        if st.button("🗑️", help="Eliminar TDR", key="eliminar_tdr"):
+                            st.warning("Funcionalidad de eliminación pendiente")
                 
                 # Opción para marcar propuesta como presentada
                 st.markdown("---")
@@ -737,8 +803,7 @@ if st.session_state.editing_project is not None:
                                 
                                 # Subir archivo de propuesta si se proporcionó
                                 if archivo_propuesta:
-                                    tipo_propuesta_id = next((t.id for t in tipos_archivo_db 
-                                                            if t.nombre.lower() == 'propuesta'), 3)  # ID para propuesta
+                                    tipo_propuesta_id = next((t.id for t in tipos_archivo_db if t.nombre == "PROPUESTA"), 2)
                                     subir_archivo_proyecto(
                                         proyecto_editar.id,
                                         tipo_propuesta_id,
@@ -1040,8 +1105,6 @@ elif vista_modo == "Tabla":
         hide_index=True,
         use_container_width=True
     )
-
-
 
 # ==============================
 # Footer
