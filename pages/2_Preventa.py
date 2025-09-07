@@ -587,7 +587,7 @@ if st.session_state.editing_project is not None:
             # Determinar el estado basado en AMBAS condiciones:
             # 1. Fecha de presentación de propuesta
             # 2. Probabilidad de cierre = 50%
-            tiene_fecha_presentacion = proyecto_editar.fecha_presentacion_propuesta is not None
+            tiene_fecha_presentacion = proyecto_editar.fecha_presentacion_cotizacion is not None
             probabilidad_50 = proyecto_editar.probabilidad_cierre == 50
             
             es_propuesta_entregada = tiene_fecha_presentacion and probabilidad_50
@@ -627,7 +627,7 @@ if st.session_state.editing_project is not None:
             col_cond1, col_cond2 = st.columns(2)
             with col_cond1:
                 estado_fecha = "✅" if tiene_fecha_presentacion else "❌"
-                st.write(f"{estado_fecha} **Fecha de presentación:** {proyecto_editar.fecha_presentacion_propuesta.strftime('%d/%m/%Y %H:%M') if tiene_fecha_presentacion else 'No establecida'}")
+                st.write(f"{estado_fecha} **Fecha de presentación:** {proyecto_editar.fecha_presentacion_cotizacion.strftime('%d/%m/%Y %H:%M') if tiene_fecha_presentacion else 'No establecida'}")
             
             with col_cond2:
                 estado_prob = "✅" if probabilidad_50 else "❌"
@@ -787,7 +787,7 @@ if st.session_state.editing_project is not None:
                             proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_editar.id).first()
                             if proyecto:
                                 # Establecer AMBAS condiciones
-                                proyecto.fecha_presentacion_propuesta = datetime.combine(fecha_presentacion, hora_presentacion)
+                                proyecto.fecha_presentacion_cotizacion = datetime.combine(fecha_presentacion, hora_presentacion)
                                 proyecto.probabilidad_cierre = 50  # Forzar a 50%
                                 
                                 proyecto.agregar_evento_historial(
