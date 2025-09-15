@@ -63,8 +63,8 @@ try:
             else:
                 st.info("ℹ️ La tabla 'proyectos' existe pero está vacía")
         
-except Exception as e:
-    st.error(f"❌ Error al acceder a tabla 'proyectos': {e}")
+        except Exception as e:
+        st.error(f"❌ Error al acceder a tabla 'proyectos': {e}")
 
 except Exception as e:
     st.error(f"❌ Error de conexión: {e}")
