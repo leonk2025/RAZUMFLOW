@@ -157,28 +157,6 @@ def actualizar_proyecto(proyecto_actualizado):
     finally:
         db.close()
 
-###
-## FUNCION PARA OBTENER ESTADO DE ENTREGA
-####
-
-def obtener_estado_entrega(proyecto):
-    """Calcula el estado de entrega basado en fecha_ingreso_oc + plazo_entrega"""
-    if not proyecto.fecha_ingreso_oc or not proyecto.plazo_entrega:
-        return {'dias_restantes': None, 'estado': 'sin_datos', 'color': '#666666'}
-
-    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega +1 )
-    dias_restantes = (fecha_entrega - datetime.now()).days
-
-    if dias_restantes < 0:
-        return {'dias_restantes': abs(dias_restantes), 'estado': 'vencido', 'color': '#dc2626'}
-    elif dias_restantes == 0:
-        return {'dias_restantes': 0, 'estado': 'hoy', 'color': '#ea580c'}
-    elif dias_restantes <= 5:
-        return {'dias_restantes': dias_restantes, 'estado': 'urgente', 'color': '#f59e0b'}
-    elif dias_restantes <= 7:
-        return {'dias_restantes': dias_restantes, 'estado': 'atencion', 'color': '#4ECDC4'}
-    else:
-        return {'dias_restantes': dias_restantes, 'estado': 'normal', 'color': '#16a34a'}
 
 # ==============================
 # Inicialización segura
@@ -239,6 +217,19 @@ def convertir_a_pen(valor, moneda):
         return valor * st.session_state.tipo_cambio_actual
 
 def obtener_estilo_deadline(nivel_alerta):
+    """Devuelve estilo CSS según el nivel de alerta del deadline"""
+    estilos = {
+        'vencido': {'color': '#666666', 'icono': '☠️', 'fondo': '#F5F5F5'},
+        'critico': {'color': '#dc2626', 'icono': '🔥', 'fondo': '#fef2f2'},
+        'muy_urgente': {'color': '#ea580c', 'icono': '⏰', 'fondo': '#fff7ed'},
+        'urgente': {'color': '#ea580c', 'icono': '⏳', 'fondo': '#fff7ed'},
+        'por_vencer': {'color': '#ca8a04', 'icono': '📅', 'fondo': '#fefce8'},
+        'disponible': {'color': '#16a34a', 'icono': '✅', 'fondo': '#f0fdf4'},
+        'sin_deadline': {'color': '#16a34a', 'icono': '📌', 'fondo': '#f0fdf4'}
+    }
+    return estilos.get(nivel_alerta, estilos['sin_deadline'])
+
+def obtener_estilo_entrega(nivel_alerta):
     """Devuelve estilo CSS según el nivel de alerta del deadline"""
     estilos = {
         'vencido': {'color': '#666666', 'icono': '☠️', 'fondo': '#F5F5F5'},
@@ -385,11 +376,23 @@ def crear_tarjeta_proyecto(proyecto, estado):
             )
 
     if estado == Estado.DELIVERY:
-        estado_entrega = obtener_estado_entrega(proyecto)
-        if estado_entrega['dias_restantes'] is not None:
+        #estado_entrega = obtener_estado_entrega(proyecto)
+        nivel_alerta = proyecto.obtener_nivel_alerta_entrega()
+        estilo = obtener_estilo_entrega(nivel_alerta)
+        dias_restantes = proyecto.dias_restantes_entrega()
+
+        if dias_restantes is not None and not proyecto.fecha_ingreso_oc:
+           texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
            extra_lines.append(
-                f"<div style='color: {estado_entrega['color']}; font-size: 11px; margin-top: 4px;'>"
-                f"⏰ Plazo de Entrega: {estado_entrega['dias_restantes']} dia(s) - {estado_entrega['estado']}"
+                f"<div class='deadline-badge' style='background:{estilo['fondo']}; color:{estilo['color']}; border:1px solid {estilo['color']}20;'>"
+                f"{estilo['icono']} Plazo de Entrega: {proyecto.dias_restantes_entrega} "
+                f"({texto_dias})</div>"
+            )
+
+
+           extra_lines.append(
+                f"<div style='color: #16a34a; font-size: 11px; margin-top: 4px;'>"
+                f"✅ Plazo: {estado_entrega['dias_restantes']}"
                 f"</div>"
             )
 
