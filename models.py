@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship, declarative_base
 Base = declarative_base()
 
 class Estado(Enum):
-    OPORTUNIDAD = "OPORTU"
+    OPORTUNIDAD = "OPORTUNIDAD"
     PREVENTA = "PREVENTA"
     DELIVERY = "DELIVERY"
     COBRANZA = "COBRANZA"
