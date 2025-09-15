@@ -388,15 +388,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
                 f"{estilo['icono']} Plazo de Entrega: {proyecto.dias_restantes_entrega} "
                 f"({texto_dias})</div>"
             )
-
-
-           extra_lines.append(
-                f"<div style='color: #16a34a; font-size: 11px; margin-top: 4px;'>"
-                f"✅ Plazo: {estado_entrega['dias_restantes']}"
-                f"</div>"
-            )
-
-
+       
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
         nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
         estilo = obtener_estilo_deadline(nivel_alerta)
