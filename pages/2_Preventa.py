@@ -627,9 +627,7 @@ if proyectos_preventa:
 # ==============================
 # Formulario de Edición
 # ==============================
-# ==============================
-# Formulario de Edición (PARTE MODIFICADA)
-# ==============================
+#
 if st.session_state.editing_project is not None:
     proyecto_editar = next((p for p in proyectos_preventa if p.id == st.session_state.editing_project), None)
 
