@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 import random
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -26,6 +26,7 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=datetime.now)
 
     proyectos = relationship("Proyecto", back_populates="asignado_a")
+    archivos_subidos = relationship("ProyectoArchivos", back_populates="usuario")
 
     def __str__(self):
         return f"{self.nombre} ({self.email})"
@@ -62,6 +63,42 @@ class Contacto(Base):
 
     def __str__(self):
         return f"{self.nombre} - {self.cargo}"
+
+class TiposArchivo(Base):
+    __tablename__ = 'tipos_archivo'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(String(300))
+
+    activo = Column(Boolean, default=True)
+
+    archivos = relationship("ProyectoArchivos", back_populates="tipo_archivo")
+
+    def __str__(self):
+        return self.nombre
+
+class ProyectoArchivos(Base):
+    __tablename__ = 'proyecto_archivos'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    proyecto_id = Column(Integer, ForeignKey('proyectos.id'), nullable=False)
+    tipo_archivo_id = Column(Integer, ForeignKey('tipos_archivo.id'), nullable=False)
+    subido_por_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)  # ← Coincide con BD
+
+    nombre_archivo = Column(String(300), nullable=False)  # ← Coincide con BD
+    ruta_archivo = Column(String(500), nullable=False)    # ← Coincide con BD
+    fecha_subida = Column(DateTime, default=datetime.now)
+    descripcion = Column(Text)
+
+
+    # Relaciones (ajustar nombres)
+    proyecto = relationship("Proyecto", back_populates="archivos")
+    tipo_archivo = relationship("TiposArchivo", back_populates="archivos")
+    usuario = relationship("Usuario", foreign_keys=[subido_por_id])  # ← Usar foreign_keys
+
+    def __str__(self):
+        return f"{self.nombre_archivo}"
 
 class EventoHistorial(Base):
     __tablename__ = 'eventos_historial'
@@ -110,6 +147,7 @@ class Proyecto(Base):
     asignado_a = relationship("Usuario", back_populates="proyectos")
     contacto_principal = relationship("Contacto")
     historial = relationship("EventoHistorial", back_populates="proyecto", order_by="EventoHistorial.timestamp.desc()")
+    archivos = relationship("ProyectoArchivos", back_populates="proyecto")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -140,7 +178,7 @@ class Proyecto(Base):
     def actualizar_probabilidad_cierre(self):
         probabilidades = {
             "OPORTUNIDAD": 25,
-            "PREVENTA": 50,
+            "PREVENTA": 25,
             "DELIVERY": 75,
             "COBRANZA": 90,
             "POSTVENTA": 100
@@ -175,7 +213,7 @@ class Proyecto(Base):
             return 'disponible'
 
     def obtener_nivel_alerta_entrega(self):
-        if not self.fecha_ingreso_oc:
+        if not self.fecha_deadline_propuesta:
             return 'sin_deadline'
 
         fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega +1 )
@@ -207,6 +245,33 @@ class Proyecto(Base):
         fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega +1 )
         dias_restantes = (fecha_entrega - datetime.now()).days
         return dias_restantes
+
+    def agregar_archivo(self, tipo_archivo_id, usuario_id, nombre_original, nombre_almacenado,
+                       ruta_archivo, tamanio_bytes, descripcion=None):
+        archivo = ProyectoArchivo(
+            proyecto_id=self.id,
+            tipo_archivo_id=tipo_archivo_id,
+            usuario_id=usuario_id,
+            nombre_original=nombre_original,
+            nombre_almacenado=nombre_almacenado,
+            ruta_archivo=ruta_archivo,
+            tamanio_bytes=tamanio_bytes,
+            descripcion=descripcion
+        )
+        self.archivos.append(archivo)
+        self.agregar_evento_historial(
+            f"Archivo subido: {nombre_original}",
+            usuario_id
+        )
+        return archivo
+
+    def obtener_archivos_por_tipo(self, tipo_archivo_id=None):
+        if tipo_archivo_id:
+            return [archivo for archivo in self.archivos if archivo.tipo_archivo_id == tipo_archivo_id and archivo.activo]
+        return [archivo for archivo in self.archivos if archivo.activo]
+
+
+
 
     def __str__(self):
         return f"{self.codigo_proyecto} - {self.nombre} ({self.estado_actual})"
