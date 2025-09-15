@@ -385,7 +385,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
            texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
            extra_lines.append(
                 f"<div class='deadline-badge' style='background:{estilo['fondo']}; color:{estilo['color']}; border:1px solid {estilo['color']}20;'>"
-                f"{estilo['icono']} Plazo de Entrega: {proyecto.dias_restantes_entrega} "
+                f"{estilo['icono']} Plazo de Entrega: {dias_restantes} "
                 f"{texto_dias}</div>"
             )
        
