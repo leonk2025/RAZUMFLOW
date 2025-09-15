@@ -214,11 +214,11 @@ class Proyecto(Base):
             return 'disponible'
 
     def obtener_nivel_alerta_entrega(self):
-        if not self.fecha_deadline_propuesta:
+        if not self.fecha_ingreso_oc:
             return 'sin_deadline'
 
-        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega + 1 )
-        dias_restantes = (fecha_entrega - datetime.now()).days
+        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega)
+        dias_restantes = (fecha_entrega - datetime.now()).days + 1
 
         if dias_restantes < 0:
             return 'vencido'
@@ -243,8 +243,8 @@ class Proyecto(Base):
     def dias_restantes_entrega(self):
         if not self.fecha_ingreso_oc:
             return None
-        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega +1 )
-        dias_restantes = (fecha_entrega - datetime.now()).days
+        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega)
+        dias_restantes = (fecha_entrega - datetime.now()).days + 1
         return dias_restantes
 
     def agregar_archivo(self, tipo_archivo_id, usuario_id, nombre_original, nombre_almacenado,
