@@ -156,6 +156,29 @@ def actualizar_proyecto(proyecto_actualizado):
     finally:
         db.close()
 
+###
+## FUNCION PARA OBTENER ESTADO DE ENTREGA
+####
+
+def obtener_estado_entrega(proyecto):
+    """Calcula el estado de entrega basado en fecha_ingreso_oc + plazo_entrega"""
+    if not proyecto.fecha_ingreso_oc or not proyecto.plazo_entrega:
+        return {'dias_restantes': None, 'estado': 'sin_datos', 'color': '#666666'}
+
+    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega)
+    dias_restantes = (fecha_entrega - datetime.now()).days
+
+    if dias_restantes < 0:
+        return {'dias_restantes': abs(dias_restantes), 'estado': 'vencido', 'color': '#dc2626'}
+    elif dias_restantes == 0:
+        return {'dias_restantes': 0, 'estado': 'hoy', 'color': '#ea580c'}
+    elif dias_restantes <= 3:
+        return {'dias_restantes': dias_restantes, 'estado': 'urgente', 'color': '#f59e0b'}
+    elif dias_restantes <= 7:
+        return {'dias_restantes': dias_restantes, 'estado': 'atencion', 'color': '#4ECDC4'}
+    else:
+        return {'dias_restantes': dias_restantes, 'estado': 'normal', 'color': '#16a34a'}
+
 # ==============================
 # Inicialización segura
 # ==============================
@@ -341,6 +364,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
 
     dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
     extra_lines = []
+    contador_html = ""
 
     if estado == Estado.OPORTUNIDAD:
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
@@ -359,6 +383,19 @@ def crear_tarjeta_proyecto(proyecto, estado):
                 f"⏳ Cotización en preparación"
                 f"</div>"
             )
+    if estado == Estado.DELIVERY:
+        estado_entrega = obtener_estado_entrega(proyecto)
+        if estado_entrega['dias_restantes'] is not None:
+            contador_html = f"""
+            <div style="position: absolute; top: 10px; right: 10px;
+                        width: 40px; height: 40px; border-radius: 50%;
+                        background-color: {estado_entrega['color']};
+                        display: flex; align-items: center; justify-content: center;
+                        color: white; font-weight: bold; font-size: 14px;
+                        border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                {estado_entrega['dias_restantes']}
+            </div>
+            """
 
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
         nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
@@ -383,7 +420,8 @@ def crear_tarjeta_proyecto(proyecto, estado):
 
     with col1:
         st.markdown(f"""
-        <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
+        <div class='card' style='border-color:{color}; margin-bottom: 5px; position: relative;'>
+            {contador_html}
             <strong>{proyecto.nombre}</strong><br>
             <span style="font-size:12px;">🏢 {cliente_nombre}</span><br>
             <span style="font-size:12px;">👤 {usuario_nombre}</span><br>
