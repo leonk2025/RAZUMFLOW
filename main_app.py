@@ -166,7 +166,7 @@ def obtener_estado_entrega(proyecto):
     if not proyecto.fecha_ingreso_oc or not proyecto.plazo_entrega:
         return {'dias_restantes': None, 'estado': 'sin_datos', 'color': '#666666'}
 
-    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega) + 1
+    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega +1 )
     dias_restantes = (fecha_entrega - datetime.now()).days
 
     if dias_restantes < 0:
