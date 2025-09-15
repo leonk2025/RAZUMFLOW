@@ -175,7 +175,7 @@ class Proyecto(Base):
             return 'disponible'
 
     def obtener_nivel_alerta_entrega(self):
-        if not self.fecha_fecha_ingreso_oc:
+        if not self.fecha_ingreso_oc:
             return 'sin_deadline'
 
         fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega +1 )
