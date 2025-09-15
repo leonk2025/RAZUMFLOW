@@ -173,7 +173,7 @@ def obtener_estado_entrega(proyecto):
         return {'dias_restantes': abs(dias_restantes), 'estado': 'vencido', 'color': '#dc2626'}
     elif dias_restantes == 0:
         return {'dias_restantes': 0, 'estado': 'hoy', 'color': '#ea580c'}
-    elif dias_restantes <= 5:
+    elif dias_restantes <= 3:
         return {'dias_restantes': dias_restantes, 'estado': 'urgente', 'color': '#f59e0b'}
     elif dias_restantes <= 7:
         return {'dias_restantes': dias_restantes, 'estado': 'atencion', 'color': '#4ECDC4'}
