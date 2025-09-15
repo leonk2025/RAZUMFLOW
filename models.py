@@ -135,7 +135,13 @@ class Proyecto(Base):
     activo = Column(Boolean, default=True)
     codigo_convocatoria = Column(String(100))
     probabilidad_cierre = Column(Integer, default=25)
-
+    
+    # 🌟  NUEVOS CAMPOS AGREGADOS 🌟
+    fecha_ingreso_oc = Column(DateTime)
+    plazo_entrega = Column(Integer)
+    fecha_facturacion = Column(DateTime)
+    dias_pago = Column(Integer, default=15)
+    
     # Relaciones
     cliente = relationship("Cliente", back_populates="proyectos")
     asignado_a = relationship("Usuario", back_populates="proyectos")
