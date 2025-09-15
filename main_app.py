@@ -307,7 +307,7 @@ iconos_estados = {
 }
 
 nombres_estados = {
-    Estado.OPORTUNIDAD: 'OPORTUNIDADES',
+    Estado.OPORTUNIDAD: 'OPORTUNIDAD',
     Estado.PREVENTA: 'PREVENTA',
     Estado.DELIVERY: 'DELIVERY',
     Estado.COBRANZA: 'COBRANZA',
