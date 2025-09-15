@@ -166,14 +166,14 @@ def obtener_estado_entrega(proyecto):
     if not proyecto.fecha_ingreso_oc or not proyecto.plazo_entrega:
         return {'dias_restantes': None, 'estado': 'sin_datos', 'color': '#666666'}
 
-    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega)
+    fecha_entrega = proyecto.fecha_ingreso_oc + timedelta(days=proyecto.plazo_entrega) + 1
     dias_restantes = (fecha_entrega - datetime.now()).days
 
     if dias_restantes < 0:
         return {'dias_restantes': abs(dias_restantes), 'estado': 'vencido', 'color': '#dc2626'}
     elif dias_restantes == 0:
         return {'dias_restantes': 0, 'estado': 'hoy', 'color': '#ea580c'}
-    elif dias_restantes <= 3:
+    elif dias_restantes <= 5:
         return {'dias_restantes': dias_restantes, 'estado': 'urgente', 'color': '#f59e0b'}
     elif dias_restantes <= 7:
         return {'dias_restantes': dias_restantes, 'estado': 'atencion', 'color': '#4ECDC4'}
@@ -388,8 +388,8 @@ def crear_tarjeta_proyecto(proyecto, estado):
         estado_entrega = obtener_estado_entrega(proyecto)
         if estado_entrega['dias_restantes'] is not None:
            extra_lines.append(
-                f"<div style='color: #16a34a; font-size: 11px; margin-top: 4px;'>"
-                f"✅ Plazo: {estado_entrega['dias_restantes']}"
+                f"<div style='color: #ea580c; font-size: 11px; margin-top: 4px;'>"
+                f"⏰ Plazo de Entrega: {estado_entrega['dias_restantes']}"
                 f"</div>"
             )
 
