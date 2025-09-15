@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import requests
 from database import SessionLocal
+from datetime import timedelta
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
 
 import logging
