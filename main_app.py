@@ -386,7 +386,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
            extra_lines.append(
                 f"<div class='deadline-badge' style='background:{estilo['fondo']}; color:{estilo['color']}; border:1px solid {estilo['color']}20;'>"
                 f"{estilo['icono']} Plazo de Entrega: {proyecto.dias_restantes_entrega} "
-                f"({texto_dias})</div>"
+                f"{texto_dias}</div>"
             )
        
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
