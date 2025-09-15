@@ -46,10 +46,12 @@ try:
             st.error(f"❌ sqlite_master falló: {e}")
             
         # Método 2: Information schema (estándar SQL)
+        #SELECT table_name FROM information_schema.tables 
+        #WHERE table_schema = DATABASE();
         try:
             result = conn.execute(text("""
-                SELECT table_name FROM information_schema.tables 
-                WHERE table_schema = DATABASE();
+                SELECT * FROM proyectos  
+                WHERE id = 1;
             """))
             tables = [row[0] for row in result]
             st.success("✅ Tablas encontradas con information_schema:")
