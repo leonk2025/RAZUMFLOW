@@ -275,9 +275,8 @@ def marcar_propuesta_presentada_orm(proyecto_id):
         db.rollback()
         raise e
 
-def subir_orden_compra_orm(proyecto_id, usuario_id):
+def subir_orden_compra_orm(proyecto_id, usuario_id, plazo_entrega, fecha_ingreso_oc):
     """Sube orden de compra y avanza automáticamente a DELIVERY si es exitoso"""
-
     try:
         db = SessionLocal()
 
@@ -779,7 +778,11 @@ if st.session_state.editing_project is not None:
                                     db.commit()
 
                                 # Auto-avance a DELIVERY después de subir OC/Contrato
-                                if subir_orden_compra_orm(proyecto_editar.id, 1):
+
+                                # Preparar datos para la función
+                                fecha_oc_completa = datetime.combine(nueva_fecha_ingreso_oc, datetime.now().time())
+
+                                if subir_orden_compra_orm(proyecto_editar.id, 1, nuevo_plazo_entrega, fecha_oc_completa):
                                     st.balloons()
                                     st.success("🎉 ¡Contrato/OC subido y proyecto movido a DELIVERY!")
                                     time.sleep(3)
