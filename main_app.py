@@ -381,7 +381,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
         estilo = obtener_estilo_entrega(nivel_alerta)
         dias_restantes = proyecto.dias_restantes_entrega()
 
-        if dias_restantes is not None and not proyecto.fecha_ingreso_oc:
+        if dias_restantes is not None:
            texto_dias = f"{abs(dias_restantes)} días {'pasados' if dias_restantes < 0 else 'restantes'}"
            extra_lines.append(
                 f"<div class='deadline-badge' style='background:{estilo['fondo']}; color:{estilo['color']}; border:1px solid {estilo['color']}20;'>"
