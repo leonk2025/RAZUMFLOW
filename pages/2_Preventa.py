@@ -277,18 +277,25 @@ def marcar_propuesta_presentada_orm(proyecto_id):
 
 def subir_orden_compra_orm(proyecto_id, usuario_id):
     """Sube orden de compra y avanza automáticamente a DELIVERY si es exitoso"""
+
     try:
         db = SessionLocal()
 
         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
         if proyecto:
+            # ACTUALIZAR NUEVOS CAMPOS
+            if plazo_entrega:
+                proyecto.plazo_entrega = plazo_entrega
+            if fecha_ingreso_oc:
+                proyecto.fecha_ingreso_oc = fecha_ingreso_oc
+
             proyecto.probabilidad_cierre = 75
             proyecto.agregar_evento_historial("🎉 Orden de Compra recibida - Probabilidad 75%")
             proyecto.fecha_ultima_actualizacion = datetime.now()
-            
+
             # Auto-avance a DELIVERY
             proyecto.mover_a_estado(Estado.DELIVERY, usuario_id)
-            
+
             db.commit()
 
         db.close()
@@ -296,6 +303,26 @@ def subir_orden_compra_orm(proyecto_id, usuario_id):
     except Exception as e:
         db.rollback()
         raise e
+
+#     try:
+#         db = SessionLocal()
+#
+#         proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+#         if proyecto:
+#             proyecto.probabilidad_cierre = 75
+#             proyecto.agregar_evento_historial("🎉 Orden de Compra recibida - Probabilidad 75%")
+#             proyecto.fecha_ultima_actualizacion = datetime.now()
+#
+#             # Auto-avance a DELIVERY
+#             proyecto.mover_a_estado(Estado.DELIVERY, usuario_id)
+#
+#             db.commit()
+#
+#         db.close()
+#         return True
+#     except Exception as e:
+#         db.rollback()
+#         raise e
 
 def cargar_usuarios_activos():
     """Carga usuarios activos"""
@@ -703,27 +730,35 @@ if st.session_state.editing_project is not None:
                     with col_cont3:
                         if st.button("🗑️", help="Eliminar Contrato", key="eliminar_contrato"):
                             st.warning("Funcionalidad de eliminación pendiente")
-                
+
+
                 # Opción para subir nuevo contrato
                 st.markdown("---")
                 st.subheader("📤 Subir Contrato/OC")
-                
+
                 col_archivo1, col_archivo2 = st.columns([3, 1])
                 with col_archivo1:
                     nuevo_contrato = st.file_uploader("Seleccionar Contrato/OC", type=['pdf', 'docx', 'xlsx'], key="nuevo_contrato")
                 with col_archivo2:
                     st.selectbox("Tipo", options=["CONTRATO"], disabled=True, key="tipo_contrato")
-                
+
+                # NUEVOS CAMPOS: Plazo de entrega y fecha ingreso OC
+                col_plazo, col_fecha_oc = st.columns(2)
+                with col_plazo:
+                    nuevo_plazo_entrega = st.number_input("Plazo de Entrega (días)", min_value=1, value=30, step=1)
+                with col_fecha_oc:
+                    nueva_fecha_ingreso_oc = st.date_input("Fecha Ingreso OC", value=datetime.now().date(), format="DD/MM/YYYY")
+
                 if nuevo_contrato:
                     duplicado, nombre_final, ruta_completa = verificar_archivo_duplicado(
                         proyecto_editar.id, "CONTRATO", nuevo_contrato.name
                     )
-                    
+
                     if duplicado:
                         st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final}")
                     else:
                         st.success(f"✅ Contrato/OC listo para subir: {nombre_final}")
-                        
+
                         if st.button("Subir Contrato/OC", key="subir_contrato"):
                             try:
                                 tipo_contrato_id = next((t.id for t in tipos_archivo_db if t.nombre == "CONTRATO"), 3)
@@ -733,7 +768,16 @@ if st.session_state.editing_project is not None:
                                     nuevo_contrato,
                                     1  # ID del usuario actual
                                 )
-                                
+
+                                # ACTUALIZAR NUEVOS CAMPOS al subir OC
+                                db = SessionLocal()
+                                proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_editar.id).first()
+                                if proyecto:
+                                    proyecto.fecha_ingreso_oc = datetime.combine(nueva_fecha_ingreso_oc, datetime.now().time())
+                                    proyecto.plazo_entrega = nuevo_plazo_entrega
+                                    proyecto.fecha_ultima_actualizacion = datetime.now()
+                                    db.commit()
+
                                 # Auto-avance a DELIVERY después de subir OC/Contrato
                                 if subir_orden_compra_orm(proyecto_editar.id, 1):
                                     st.balloons()
@@ -743,6 +787,47 @@ if st.session_state.editing_project is not None:
                                     st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error al subir archivo: {str(e)}")
+
+                
+#                 # Opción para subir nuevo contrato
+#                 st.markdown("---")
+#                 st.subheader("📤 Subir Contrato/OC")
+#
+#                 col_archivo1, col_archivo2 = st.columns([3, 1])
+#                 with col_archivo1:
+#                     nuevo_contrato = st.file_uploader("Seleccionar Contrato/OC", type=['pdf', 'docx', 'xlsx'], key="nuevo_contrato")
+#                 with col_archivo2:
+#                     st.selectbox("Tipo", options=["CONTRATO"], disabled=True, key="tipo_contrato")
+#
+#                 if nuevo_contrato:
+#                     duplicado, nombre_final, ruta_completa = verificar_archivo_duplicado(
+#                         proyecto_editar.id, "CONTRATO", nuevo_contrato.name
+#                     )
+#
+#                     if duplicado:
+#                         st.error(f"❌ Ya existe un archivo con el nombre: {nombre_final}")
+#                     else:
+#                         st.success(f"✅ Contrato/OC listo para subir: {nombre_final}")
+#
+#                         if st.button("Subir Contrato/OC", key="subir_contrato"):
+#                             try:
+#                                 tipo_contrato_id = next((t.id for t in tipos_archivo_db if t.nombre == "CONTRATO"), 3)
+#                                 subir_archivo_proyecto(
+#                                     proyecto_editar.id,
+#                                     tipo_contrato_id,
+#                                     nuevo_contrato,
+#                                     1  # ID del usuario actual
+#                                 )
+#
+#                                 # Auto-avance a DELIVERY después de subir OC/Contrato
+#                                 if subir_orden_compra_orm(proyecto_editar.id, 1):
+#                                     st.balloons()
+#                                     st.success("🎉 ¡Contrato/OC subido y proyecto movido a DELIVERY!")
+#                                     time.sleep(3)
+#                                     st.session_state.editing_project = None
+#                                     st.rerun()
+#                             except Exception as e:
+#                                 st.error(f"❌ Error al subir archivo: {str(e)}")
 
             else:
                 # ESTADO: PREVENTA ACTIVA (no tiene fecha de presentación o probabilidad no es 50%)
