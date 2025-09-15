@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import requests
 from database import SessionLocal
-from datetime import timedelta
 from models import Proyecto, Estado, Usuario, Cliente, Contacto
+from datetime import timedelta
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -365,7 +365,6 @@ def crear_tarjeta_proyecto(proyecto, estado):
 
     dias_sin = (datetime.now() - proyecto.fecha_ultima_actualizacion).days
     extra_lines = []
-    contador_html = ""
 
     if estado == Estado.OPORTUNIDAD:
         color_estado = "green" if dias_sin < 3 else "orange" if dias_sin < 7 else "red"
@@ -384,19 +383,16 @@ def crear_tarjeta_proyecto(proyecto, estado):
                 f"⏳ Cotización en preparación"
                 f"</div>"
             )
+
     if estado == Estado.DELIVERY:
         estado_entrega = obtener_estado_entrega(proyecto)
         if estado_entrega['dias_restantes'] is not None:
-            contador_html = f"""
-            <div style="position: absolute; top: 10px; right: 10px;
-                        width: 40px; height: 40px; border-radius: 50%;
-                        background-color: {estado_entrega['color']};
-                        display: flex; align-items: center; justify-content: center;
-                        color: white; font-weight: bold; font-size: 14px;
-                        border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                {estado_entrega['dias_restantes']}
-            </div>
-            """
+           extra_lines.append(
+                f"<div style='color: #16a34a; font-size: 11px; margin-top: 4px;'>"
+                f"✅ Plazo: {estado_entrega['dias_restantes']}"
+                f"</div>"
+            )
+
 
     if estado in [Estado.OPORTUNIDAD, Estado.PREVENTA] and proyecto.fecha_deadline_propuesta:
         nivel_alerta = proyecto.obtener_nivel_alerta_deadline()
@@ -421,8 +417,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
 
     with col1:
         st.markdown(f"""
-        <div class='card' style='border-color:{color}; margin-bottom: 5px; position: relative;'>
-            {contador_html}
+        <div class='card' style='border-color:{color}; margin-bottom: 5px;'>
             <strong>{proyecto.nombre}</strong><br>
             <span style="font-size:12px;">🏢 {cliente_nombre}</span><br>
             <span style="font-size:12px;">👤 {usuario_nombre}</span><br>
