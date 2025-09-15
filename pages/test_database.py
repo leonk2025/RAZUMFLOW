@@ -45,20 +45,26 @@ try:
         except Exception as e:
             st.error(f"❌ sqlite_master falló: {e}")
             
-        # Método 2: Information schema (estándar SQL)
-        #SELECT table_name FROM information_schema.tables 
-        #WHERE table_schema = DATABASE();
+        # Método 2: Mostrar el primer registro completo de la tabla proyectos
         try:
-            result = conn.execute(text("""
-                SELECT * FROM proyectos  
-                WHERE id = 1;
-            """))
-            tables = [row[0] for row in result]
-            st.success("✅ Tablas encontradas con information_schema:")
-            for table in tables:
-                st.write(f"- {result}")
-        except Exception as e:
-            st.error(f"❌ information_schema falló: {e}")
+            result = conn.execute(text("SELECT * FROM proyectos LIMIT 1;"))
+            row = result.fetchone()
+            
+            if row:
+                st.success("✅ Primer registro de la tabla 'proyectos':")
+                
+                # Obtener nombres de columnas
+                columns_result = conn.execute(text("PRAGMA table_info(proyectos);"))
+                column_names = [col[1] for col in columns_result]
+                
+                # Mostrar cada campo con su valor
+                for i, (col_name, value) in enumerate(zip(column_names, row)):
+                    st.write(f"**{col_name}:** `{value}`")
+            else:
+                st.info("ℹ️ La tabla 'proyectos' existe pero está vacía")
+        
+except Exception as e:
+    st.error(f"❌ Error al acceder a tabla 'proyectos': {e}")
 
 except Exception as e:
     st.error(f"❌ Error de conexión: {e}")
