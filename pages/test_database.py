@@ -56,7 +56,7 @@ try:
             tables = [row[0] for row in result]
             st.success("✅ Tablas encontradas con information_schema:")
             for table in tables:
-                st.write(f"- {table}")
+                st.write(f"- {result}")
         except Exception as e:
             st.error(f"❌ information_schema falló: {e}")
 
