@@ -172,7 +172,7 @@ class Proyecto(Base):
     def actualizar_probabilidad_cierre(self):
         probabilidades = {
             "OPORTUNIDAD": 25,
-            "PREVENTA": 50,
+            "PREVENTA": 25,
             "DELIVERY": 75,
             "COBRANZA": 90,
             "POSTVENTA": 100
