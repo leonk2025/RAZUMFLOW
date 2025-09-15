@@ -217,7 +217,7 @@ class Proyecto(Base):
         if not self.fecha_deadline_propuesta:
             return 'sin_deadline'
 
-        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega +1 )
+        fecha_entrega = self.fecha_ingreso_oc + timedelta(days=self.plazo_entrega + 1 )
         dias_restantes = (fecha_entrega - datetime.now()).days
 
         if dias_restantes < 0:
