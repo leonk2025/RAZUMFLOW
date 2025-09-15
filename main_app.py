@@ -389,7 +389,7 @@ def crear_tarjeta_proyecto(proyecto, estado):
         if estado_entrega['dias_restantes'] is not None:
            extra_lines.append(
                 f"<div style='color: {estado_entrega}['color']; font-size: 11px; margin-top: 4px;'>"
-                f"⏰ Plazo de Entrega: {estado_entrega['dias_restantes'] dia(s) restante(s) - {estado_entrega}['estado']"
+                f"⏰ Plazo de Entrega: {estado_entrega}['dias_restantes'] dia(s) restante(s) - {estado_entrega}['estado']"
                 f"</div>"
             )
 
