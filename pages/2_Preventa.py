@@ -101,7 +101,8 @@ def obtener_archivos_proyecto(proyecto_id):
                 ProyectoArchivos.proyecto_id == proyecto_id
         ).options(
             joinedload(ProyectoArchivos.tipo_archivo),
-            joinedload(ProyectoArchivos.usuario)
+            joinedload(ProyectoArchivos.usuario),
+            joinedload(ProyectoArchivos.proyecto)  # Añade esta línea
         ).all()
         return archivos
     finally:
@@ -414,7 +415,7 @@ def obtener_estado_preventa(proyecto):
     if proyecto.probabilidad_cierre >= 75:
         return {'nombre': '🎉 OC FIRMADA', 'color': '#16a34a', 'icono': '🎉'}
     elif proyecto.probabilidad_cierre >= 50:
-        return {'nombre': '📤 PROPUESTA ENTREGADA', 'color': '#3b82f6', 'icono': '📤'}
+        return {'nombre': '📤 PROPUESTA ENTREGADA', 'color': '#4ECDC4', 'icono': '📤'}
     else:
         return {'nombre': '📋 PREVENTA ACTIVA', 'color': '#f59e0b', 'icono': '📋'}
 
@@ -1011,30 +1012,52 @@ elif vista_modo == "Tarjetas":
                     deadline_html = f"{estilo_deadline['icono']} Sin deadline"
 
                 # TARJETA CON ESTILO DE OPORTUNIDADES pero color de estado preventa
-                st.markdown(f"""
-                <div style="
-                    border: 2px solid {estado_preventa['color']};
-                    border-radius: 12px;
-                    padding: 16px;
-                    margin: 8px 0;
-                    background: linear-gradient(145deg, {estado_preventa['color']}08, {estado_preventa['color']}15);
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                ">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <h4 style="color: {estado_preventa['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
-                        <span style="background-color: {estado_preventa['color']}20; color: {estado_preventa['color']}; 
-                                    padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-                            {estado_preventa['icono']} {proyecto.probabilidad_cierre}%
-                        </span>
+                if proyecto.probabilidad_cierre >= 50:
+                    st.markdown(f"""
+                    <div style="
+                        border: 2px solid {estado_preventa['color']};
+                        border-radius: 12px;
+                        padding: 16px;
+                        margin: 8px 0;
+                        background: linear-gradient(145deg, {estado_preventa['color']}08, {estado_preventa['color']}15);
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h4 style="color: {estado_preventa['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
+                            <span style="background-color: {estado_preventa['color']}20; color: {estado_preventa['color']};
+                                        padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                                {estado_preventa['icono']} {proyecto.probabilidad_cierre}%
+                            </span>
+                        </div>
+                        <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
+                        <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}</p>
+                        <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente.nombre if proyecto.cliente else 'Sin cliente'}</p>
+                        <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
+                        <p style="margin: 4px 0; font-size: 11px; color: {estado_preventa['color']};">{deadline_html}</p>
+                        <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
                     </div>
-                    <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
-                    <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar'}</p>
-                    <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente.nombre if proyecto.cliente else 'Sin cliente'}</p>
-                    <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
-                    <p style="margin: 4px 0; font-size: 11px; color: {estado_preventa['color']};">{deadline_html}</p>
-                    <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                elif proyecto.probabilidad_cierre < 50:
+                    st.markdown(f"""
+                    <div style="
+                        border: 2px solid {estilo_deadline['color']};
+                        border-radius: 12px;
+                        padding: 16px;
+                        margin: 8px 0;
+                        background: linear-gradient(145deg, {estilo_deadline['color']}08, {estilo_deadline['color']}15);
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h4 style="color: {estilo_deadline['color']}; margin: 0; font-size: 16px;">{proyecto.codigo_proyecto}</h4>
+                        </div>
+                        <p style="margin: 8px 0; font-weight: bold; font-size: 14px;">{proyecto.nombre}</p>
+                        <p style="margin: 4px 0; font-size: 12px;">👤 {proyecto.asignado_a}</p>
+                        <p style="margin: 4px 0; font-size: 12px;">🏢 {proyecto.cliente}</p>
+                        <p style="margin: 4px 0; font-size: 12px; color: #666;">💰 {valor_formateado} <small>({proyecto.moneda})</small></p>
+                        {deadline_html}
+                        <p style="margin: 4px 0; font-size: 11px; color: #666;">📅 Próximo: {fecha_proximo_contacto.strftime('%d/%m')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 # Botones de acción (igual que antes)
                 col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
@@ -1053,11 +1076,9 @@ elif vista_modo == "Tarjetas":
 
                 with col_btn3:
                     if proyecto.probabilidad_cierre == 25:
-                        if st.button("📤", key=f"propuesta_{proyecto.id}", help="Marcar propuesta presentada"):
-                            if marcar_propuesta_presentada_orm(proyecto.id):
-                                st.success("✅ Propuesta marcada como presentada!")
-                                time.sleep(2)
-                                st.rerun()
+                        if st.button("📤", key=f"propuesta_{proyecto.id}", help="Subir Propuesta"):
+                            st.session_state.editing_project = proyecto.id
+                            st.rerun()
                     elif proyecto.probabilidad_cierre == 50:
                         if st.button("🎉", key=f"oc_{proyecto.id}", help="Subir Orden de Compra"):
                             st.session_state.editing_project = proyecto.id
@@ -1099,22 +1120,111 @@ elif vista_modo == "Tabla":
             'Asignado': proyecto.asignado_a.nombre if proyecto.asignado_a else 'Sin asignar',
             'Estado': estado_preventa['nombre'],
             'Probabilidad': f"{proyecto.probabilidad_cierre}%",
-            'Deadline': proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M') if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta else 'N/A',
-            'Propuesta': proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y') if proyecto.fecha_presentacion_cotizacion else 'Pendiente',
+            'Deadline': proyecto.fecha_deadline_propuesta.strftime('%d/%m/%Y %H:%M'), # if proyecto.probabilidad_cierre < 50 and proyecto.fecha_deadline_propuesta else 'N/A',
+            'Propuesta': proyecto.fecha_presentacion_cotizacion.strftime('%d/%m/%Y %H:%M') if proyecto.fecha_presentacion_cotizacion else 'Pendiente',
             'Últ. Actualización': proyecto.fecha_ultima_actualizacion.strftime('%d/%m/%Y'),
             'Días sin actualizar': dias_sin_actualizar,
             'ID': proyecto.id
         })
 
+  # Asegurar selección única
+    if 'selected_project_id' not in st.session_state:
+        st.session_state.selected_project_id = None
+
+    # Marcar como seleccionado solo el proyecto en session_state
+    for i, proyecto in enumerate(proyectos_filtrados):
+        datos_tabla[i]['Seleccionar'] = (proyecto.id == st.session_state.selected_project_id)
+
     df = pd.DataFrame(datos_tabla)
-    st.dataframe(
+
+    # Reordenar columnas para que "Seleccionar" sea la primera
+    column_order = ['Seleccionar'] + [col for col in df.columns if col != 'Seleccionar' and col != 'ID']
+    df = df[column_order + ['ID']]
+
+    # Mostrar el DataFrame con checkboxes
+    edited_df = st.data_editor(
         df,
         column_config={
-            "ID": None
+            "Seleccionar": st.column_config.CheckboxColumn(
+                "✓",
+                help="Selecciona un proyecto para editar",
+                width="small"
+            ),
+            "ID": None,
+            "Código": st.column_config.TextColumn("Código", width="small"),
+            "Nombre": st.column_config.TextColumn("Nombre", width="medium"),
+            "Cliente": st.column_config.TextColumn("Cliente", width="medium"),
+            "Valor": st.column_config.TextColumn("Valor", width="small"),
+            "Asignado": st.column_config.TextColumn("Asignado a", width="small"),
+            "Estado": st.column_config.TextColumn("Estado", width="medium"),
+            "Probabilidad": st.column_config.TextColumn("Prob %", width="small"),
+            "Deadline": st.column_config.TextColumn("Deadline", width="small"),
+            "Propuesta": st.column_config.TextColumn("Propuesta", width="small"),
+            "Últ. Actualización": st.column_config.TextColumn("Últ. Actualiz.", width="small"),
+            "Días sin actualizar": st.column_config.NumberColumn("Días sin act.", width="small")
         },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        disabled=["Código", "Nombre", "Cliente", "Valor", "Asignado", "Estado",
+                 "Probabilidad", "Deadline", "Propuesta", "Últ. Actualización",
+                 "Días sin actualizar", "ID"]
     )
+
+    # Actualizar selección automáticamente
+    selected_rows = edited_df[edited_df["Seleccionar"]]
+    if not selected_rows.empty:
+        new_selected_id = selected_rows.iloc[0]["ID"]
+        if new_selected_id != st.session_state.selected_project_id:
+            st.session_state.selected_project_id = new_selected_id
+            st.rerun()
+    else:
+        # Si se deseleccionó todo, limpiar la selección
+        if st.session_state.selected_project_id is not None:
+            st.session_state.selected_project_id = None
+            st.rerun()
+
+    # Botón de edición
+    st.markdown("---")
+    if st.session_state.selected_project_id:
+        selected_project = next((p for p in proyectos_filtrados if p.id == st.session_state.selected_project_id), None)
+        if selected_project:
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.info(f"**Seleccionado:** {selected_project.codigo_proyecto} - {selected_project.nombre}")
+
+            with col2:
+                if st.button(
+                    "✏️ Editar",
+                    use_container_width=True,
+                    type="primary",
+                    key="edit_selected"
+                ):
+                    st.session_state.editing_project = selected_project.id
+                    st.rerun()
+
+            with col3:
+                if st.button(
+                    "🗑️ Limpiar",
+                    use_container_width=True,
+                    key="clear_selected"
+                ):
+                    st.session_state.selected_project_id = None
+                    st.rerun()
+    else:
+        st.info("ℹ️ Selecciona un proyecto de la tabla para habilitar la edición")
+
+
+    # df = pd.DataFrame(datos_tabla)
+    # st.dataframe(
+    #     df,
+    #     column_config={
+    #         "ID": None
+    #     },
+    #     selection_mode="single-row",
+    #     hide_index=True,
+    #     use_container_width=True
+    # )
+
 
 # ==============================
 # Footer

@@ -624,10 +624,20 @@ with st.expander("➕ Crear Nueva Oportunidad", expanded=False):
             tipo_cambio = st.number_input("Tipo de Cambio (si aplica)", min_value=0.0, value=3.80, step=0.01,
                                          disabled=moneda != 'USD',
                                          help="Solo aplicable para moneda USD")
-            fecha_deadline = st.date_input("Fecha Deadline (Opcional)",
+            # Fecha deadline - editable para oportunidades
+            col_fecha, col_hora = st.columns(2)
+
+            with col_fecha:
+                fecha_deadline = st.date_input("Fecha Deadline (Opcional)",
                                          value=datetime.now() + timedelta(days=7),
                                          format="DD/MM/YYYY")
-            codigo_convocatoria = st.text_input("Código de Convocatoria (Opcional)", placeholder="CONV-2024-001")
+            with col_hora:
+                hora_deadline = st.time_input("Hora Deadline",
+                value=datetime.now(), # format="HH:MM" ,
+                step=3600  # Incrementos de 1 hora
+                )
+
+        codigo_convocatoria = st.text_input("Código de Convocatoria (Opcional)", placeholder="CONV-2024-001")
 
         # NUEVA SECCIÓN: Gestión de archivos TDR
         st.markdown("---")
@@ -661,7 +671,7 @@ with st.expander("➕ Crear Nueva Oportunidad", expanded=False):
                         'tipo_cambio': tipo_cambio if moneda == 'USD' else 3.80,
                         'cliente_id': cliente_id,
                         'asignado_a_id': asignado_a_id,
-                        'fecha_deadline': datetime.combine(fecha_deadline, datetime.min.time()) if fecha_deadline else None,
+                        'fecha_deadline': datetime.combine(fecha_deadline, hora_deadline) if fecha_deadline else None,
                         'codigo_convocatoria': codigo_convocatoria or None
                     }
 
@@ -1062,7 +1072,7 @@ elif vista_modo == "Tabla":
             .applymap(aplicar_color_deadline, subset=['Estado Deadline'])
 
         # Mostrar tabla sin la columna ID
-        columnas_mostrar = [col for col in df.columns if col != "ID"]
+        columnas_mostrar = [col for col in df.columns if col != "ID" and col != "Estado Riesgo"]
         st.dataframe(styled_df.format({"ID": lambda x: ""}),
                     column_config={"ID": None},
                     hide_index=True,
