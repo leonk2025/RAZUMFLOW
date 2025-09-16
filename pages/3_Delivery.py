@@ -561,7 +561,7 @@ with st.sidebar:
             )
             valor_total += valor_convertido
 
-        st.metric("Valor Total Pipeline", formatear_moneda(valor_total, moneta_visualizacion))
+        st.metric("Valor Total Pipeline", formatear_moneda(valor_total, moneda_visualizacion))
 
         deliveries_riesgo = len([p for p in proyectos_delivery
                                if (datetime.now() - p.fecha_ultima_actualizacion).days > 7])
