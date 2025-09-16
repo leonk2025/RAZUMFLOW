@@ -143,24 +143,6 @@ class Proyecto(Base):
     fecha_facturacion = Column(DateTime)  # Fecha de Facturación
     dias_pago = Column(Integer, default=15)  # Días de Pago (15 por defecto)
 
-
-    # NUEVOS CAMPOS DEL SCRIPT DE BD
-    fecha_entrega = Column(DateTime)
-    fecha_pago = Column(DateTime)
-    cotizado = Column(Boolean, default=False)
-    oc_recibida = Column(Boolean, default=False)
-    entregado = Column(Boolean, default=False)
-    facturado = Column(Boolean, default=False)
-    pagado = Column(Boolean, default=False)
-    numero_factura = Column(String(100))
-    monto_final_pagado = Column(Float)
-    monto_penalidad = Column(Float, default=0)
-    monto_retencion = Column(Float, default=0)
-    monto_detraccion = Column(Float, default=0)
-    tiene_penalidad = Column(Boolean, default=False)
-    tiene_retencion = Column(Boolean, default=False)
-    tiene_detraccion = Column(Boolean, default=False)
-    
     # Relaciones
     cliente = relationship("Cliente", back_populates="proyectos")
     asignado_a = relationship("Usuario", back_populates="proyectos")
